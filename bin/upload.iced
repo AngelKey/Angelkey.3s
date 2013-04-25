@@ -4,6 +4,7 @@ path = require 'path'
 fs = require 'fs'
 AWS = require 'aws-sdk'
 argv = require('optimist').alias("v", "vault").argv
+ProgressBar = require 'progress'
 
 warn = (x) -> console.log x
 
@@ -43,6 +44,7 @@ class File
     @eof = false
     @err = null
     @id = null
+    @bar = null
 
   #--------------
 
@@ -76,14 +78,27 @@ class File
   #--------------
 
   open : (cb) ->
-    await fs.open @filename, "r", defer @err, @fd
+    ok = true
+
+    await fs.stat @filename, defer @err, stat
+
     if @err?
-      @warn "open"
+      @warn "stat"
+      ok = false
+    else if not stat.isFile()
+      @warn "not a file!"
       ok = false
     else
-      @pos = 0
-      @eof = false
-      ok = true
+      @filesz = stat.size
+
+    if ok
+      await fs.open @filename, "r", defer @err, @fd
+      if @err?
+        @warn "open"
+        ok = false
+      else
+        @pos = 0
+        @eof = false
     cb ok
 
   #--------------
@@ -112,8 +127,20 @@ class File
 
   #--------------
 
+  start_progress : () ->
+    msg = " uploading [:bar] :percent <:elapseds|:etas> #{@filename} (:current/:totalb)"
+    opts =
+      complete : "="
+      incomplete : " "
+      width : 25
+      total : @filesz
+    @bar = new ProgressBar msg, opts
+
+  #--------------
+
   run : (cb) ->
     await @open defer ok
+    @start_progress() if ok
     await @upload defer ok if ok
     await fs.close @fd, defer() if @fd
     cb ok
@@ -132,14 +159,15 @@ class File
       await @read_chunk defer chnk, start, end
 
       if chnk?
-        warn "-> upload chunk #{start}-#{end}"
         full_hash.update chnk
         @leaves.push AWS.util.crypto.sha256 chnk
         params.range = "bytes #{start}-#{end-1}/*"
         params.body = chnk
         await @glacier.uploadMultipartPart params, defer @err, data
+        @bar.tick chnk.length
 
         @warn "upload #{start}-#{end}" if @err?
+    console.log ""
 
     cb not @err
 
