@@ -8,12 +8,27 @@ argv = require('optimist').alias("v", "vault").argv
 warn = (x) -> console.log x
 
 load_config = (cb) ->
-  config = path.join process.env.HOME, ".mkbkp.json"
-  await fs.exists config, defer exists
-  AWS.config.loadFromPath config if exists
+  config = path.join process.env.HOME, ".mkbkp.conf"
+  await fs.exists config, defer ok
+  if ok
+    await fs.readFile config, defer err, file
+    if err?
+      warn "Failed to load file #{config}: #{err}"
+      ok = false
+  if ok
+    try
+      json = JSON.parse file
+    catch e
+      warn "Invalid json in #{file}: #{e}"
+      ok = false
+  if ok
+    console.log json
+    AWS.config.update json
+  console.log "done---> #{ok}"
   cb()
 
 await load_config defer()
+console.log "after load_config"
 glacier = new AWS.Glacier()
 
 #=========================================================================
@@ -62,7 +77,9 @@ class File
   #--------------
 
   open : (cb) ->
+    console.log "fs open #{@filename}"
     await fs.open @filename, "r", defer @err, @fd
+    console.log "open -> #{@fd}"
     if @err?
       @warn "open"
       ok = false
@@ -85,7 +102,7 @@ class File
       vaultName : @vault
       partSize : @chunksz.toString()
     await @glacier.initiateMultipartUpload params, defer @err, @multipart
-    console.log "back from init "
+    console.log "back from init #{@err}"
     console.log @multipart
     @id = @multipart.uploadId if @multipart?
     cb not @err
@@ -103,8 +120,11 @@ class File
   #--------------
 
   run : (cb) ->
+    console.log "in run.."
     await @open defer ok
+    console.log "after open #{ok}"
     await @upload defer ok if ok
+    console.log "after upload #{ok}"
     await fs.close @fd, defer() if @fd
     cb ok
 
@@ -112,7 +132,7 @@ class File
 
   body : (cb) ->
     console.log "the body! #{@err}"
-    full_hash = aws.util.crypto.createHash 'sha256'
+    full_hash = AWS.util.crypto.createHash 'sha256'
     @leaves = []
 
     params = 
@@ -122,11 +142,11 @@ class File
     while @can_read()
       console.log "reading.."
       await @read_chunk defer chnk, start, end
-      console.log "read it #{chnk}"
+      console.log "read it #{chnk.length}"
 
       if chnk?
         full_hash.update chnk
-        @leaves.push AWS.util.crypto.sha256 chunk
+        @leaves.push AWS.util.crypto.sha256 chnk
         params.range = "bytes #{start}-#{end-1}/*"
         params.body = chnk
         await @glacier.uploadMultipartPart params, defer @err, data
