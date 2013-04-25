@@ -22,13 +22,12 @@ load_config = (cb) ->
       warn "Invalid json in #{file}: #{e}"
       ok = false
   if ok
-    console.log json
     AWS.config.update json
-  console.log "done---> #{ok}"
+  else
+    warn "Failed to load config..."
   cb()
 
 await load_config defer()
-console.log "after load_config"
 glacier = new AWS.Glacier()
 
 #=========================================================================
@@ -58,7 +57,6 @@ class File
 
     while @can_read() and i < @chunksz
       left = @chunksz - i
-      console.log "read_chunk #{i} #{@eof} #{left}"
       await fs.read @fd, @buf, i, left, @pos, defer @err, nbytes, buf
       if @err?
         @warn "reading @#{@pos}"
@@ -78,9 +76,7 @@ class File
   #--------------
 
   open : (cb) ->
-    console.log "fs open #{@filename}"
     await fs.open @filename, "r", defer @err, @fd
-    console.log "open -> #{@fd}"
     if @err?
       @warn "open"
       ok = false
@@ -93,46 +89,38 @@ class File
   #--------------
 
   warn : (msg) ->
-    console.log "In #{@filename}#{if @id? then ('/'+@id) else ''}: #{msg}: #{@err}"
+    warn "In #{@filename}#{if @id? then ('/'+@id) else ''}: #{msg}: #{@err}"
 
   #--------------
 
   init : (cb) ->
-    console.log "in init!"
     params =
       vaultName : @vault
       partSize : @chunksz.toString()
     await @glacier.initiateMultipartUpload params, defer @err, @multipart
-    console.log "back from init #{@err}"
-    console.log @multipart
     @id = @multipart.uploadId if @multipart?
+    warn "New upload id: #{@id}"
     cb not @err
 
   #--------------
 
   upload : (cb) ->
-    console.log "upload"
     await @init defer ok
     await @body defer ok if ok
     await @finish defer ok if ok
-    console.log "done with all that -> #{ok}"
     cb ok
 
   #--------------
 
   run : (cb) ->
-    console.log "in run.."
     await @open defer ok
-    console.log "after open #{ok}"
     await @upload defer ok if ok
-    console.log "after upload #{ok}"
     await fs.close @fd, defer() if @fd
     cb ok
 
   #--------------
 
   body : (cb) ->
-    console.log "the body! #{@err}"
     full_hash = AWS.util.crypto.createHash 'sha256'
     @leaves = []
 
@@ -141,11 +129,10 @@ class File
       uploadId : @id
 
     while @can_read()
-      console.log "reading.."
       await @read_chunk defer chnk, start, end
-      console.log "read it #{chnk.length}"
 
       if chnk?
+        warn "-> upload chunk #{start}-#{end}"
         full_hash.update chnk
         @leaves.push AWS.util.crypto.sha256 chnk
         params.range = "bytes #{start}-#{end-1}/*"
@@ -154,7 +141,6 @@ class File
 
         @warn "upload #{start}-#{end}" if @err?
 
-    console.log "body is done -> #{@err}"
     cb not @err
 
   #--------------
@@ -175,6 +161,7 @@ class File
 
 file = new File glacier, argv.v, argv._[0]
 await file.run defer ok
+process.exit if ok then 0 else -2
 
 #=========================================================================
 
