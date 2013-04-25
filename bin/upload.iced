@@ -14,54 +14,57 @@ load_config = (cb) ->
   cb()
 
 await load_config defer()
+glacier = new AWS.Glacier()
 
 #=========================================================================
 
-class Uploader
+class File
 
   #--------------
 
-  constructor : (@filename) ->
-    @leaf_hashes = []
+  constructor : (@glacier, @vault, @filename) ->
     @chunksz = 1024 * 1024
     @buf = new Buffer @chunksz
     @pos = 0
     @eof = false
-    @err = true
-    @glacier = new AWS.Glacier()
+    @err = null
+    @id = null
 
   #--------------
 
-  can_read : -> not @eof and not @err
+  can_read : -> (not @eof) and (not @err)
 
   #--------------
 
   read_chunk : (cb) ->
     i = 0
+
+    start = @pos
+
     while @can_read() and i < @chunksz
       left = @chunksz - i
-      await fs.read @fd, @buf, i, left, @pos, defer err, nbytes, buf
-      if err
-        warn "In reading #{@filename}@#{@pos}: #{err}"
-        @err = true
+      await fs.read @fd, @buf, i, left, @pos, defer @err, nbytes, buf
+      if @err?
+        @warn "reading @#{@pos}"
       else if buf is null
         @eof = true
       else
         i += nbytes
         @pos += nbytes
+    end = @pos
 
     ret = if i < @chunksz then @buf[0...i]
     else if @err then null
     else @buf
 
-    cb ret
+    cb ret, start, end
 
   #--------------
 
   open : (cb) ->
-    await fs.open @filename, "r", defer err, @fd
-    if err?
-      warn "In opening file #{@filename}: #{err}"
+    await fs.open @filename, "r", defer @err, @fd
+    if @err?
+      @warn "open"
       ok = false
     else
       @pos = 0
@@ -71,16 +74,86 @@ class Uploader
 
   #--------------
 
-  hash : (cb) ->
-    full = aws.util.crypto.createHash 'sha256'
-    leafs = []
+  warn : (msg) ->
+    console.log "In #{@filename}#{if @id? then ('/'+@id) else ''}: #{msg}: #{@err}"
+
+  #--------------
+
+  init : (cb) ->
+    console.log "in init!"
+    params =
+      vaultName : @vault
+      partSize : @chunksz.toString()
+    await @glacier.initiateMultipartUpload params, defer @err, @multipart
+    console.log "back from init "
+    console.log @multipart
+    @id = @multipart.uploadId if @multipart?
+    cb not @err
+
+  #--------------
+
+  upload : (cb) ->
+    console.log "upload"
+    await @init defer ok
+    await @body defer ok if ok
+    await @finish defer ok if ok
+    console.log "done with all that -> #{ok}"
+    cb ok
+
+  #--------------
+
+  run : (cb) ->
+    await @open defer ok
+    await @upload defer ok if ok
+    await fs.close @fd, defer() if @fd
+    cb ok
+
+  #--------------
+
+  body : (cb) ->
+    console.log "the body! #{@err}"
+    full_hash = aws.util.crypto.createHash 'sha256'
+    @leaves = []
+
+    params = 
+      vaultName : @vault
+      uploadId : @id
+
     while @can_read()
-      await @read_chunk defer chnk
-      full.update chnk
-      leafs.push AWS.util.crypto.sha256 chunk
+      console.log "reading.."
+      await @read_chunk defer chnk, start, end
+      console.log "read it #{chnk}"
+
+      if chnk?
+        full_hash.update chnk
+        @leaves.push AWS.util.crypto.sha256 chunk
+        params.range = "bytes #{start}-#{end-1}/*"
+        params.body = chnk
+        await @glacier.uploadMultipartPart params, defer @err, data
+
+        @warn "upload #{start}-#{end}" if @err?
+
+    console.log "body is done -> #{@err}"
+    cb not @err
+
+  #--------------
+
+  finish : (cb) ->
+
+    params = 
+      vaultName : @vault
+      uploadId : @id
+      archiveSize : @pos
+      checksum : @glacier.buildHashTree leaves
+
+    await @glacier.completeMultipartUpdate params, defer @err, data
+
+    cb not @err
 
 #=========================================================================
 
+file = new File glacier, argv.v, argv._[0]
+await file.run defer ok
 
-
+#=========================================================================
 
