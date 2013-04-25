@@ -58,10 +58,11 @@ class File
 
     while @can_read() and i < @chunksz
       left = @chunksz - i
+      console.log "read_chunk #{i} #{@eof} #{left}"
       await fs.read @fd, @buf, i, left, @pos, defer @err, nbytes, buf
       if @err?
         @warn "reading @#{@pos}"
-      else if buf is null
+      else if nbytes is 0
         @eof = true
       else
         i += nbytes
@@ -163,10 +164,10 @@ class File
     params = 
       vaultName : @vault
       uploadId : @id
-      archiveSize : @pos
-      checksum : @glacier.buildHashTree leaves
+      archiveSize : "#{@pos}"
+      checksum : @glacier.buildHashTree @leaves
 
-    await @glacier.completeMultipartUpdate params, defer @err, data
+    await @glacier.completeMultipartUpload params, defer @err, data
 
     cb not @err
 
