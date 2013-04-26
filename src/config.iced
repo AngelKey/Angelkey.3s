@@ -1,18 +1,21 @@
 
 path = require 'path'
 fs = require 'fs'
-AWS = require 'aws-sdk'
 log = reuqire './log'
 
 #=========================================================================
 
 exports.Config = class Config
 
+  #-------------------
+
   constructor : (fn) ->
     @filename = if fn? then fn
     else if (f = process.env.MKBKP_CONFIG)? then f
     else path.join process.env.HOME, ".mkbkp.conf"
     @json = null
+
+  #-------------------
 
   load : (cb) ->
     await fs.exists @filename, defer ok
@@ -37,8 +40,11 @@ exports.Config = class Config
         log.error "Missing JSON component '#{key}' in #{@filename}" unless @json?[key]?
         ok = false
 
-    AWS.config.update @json.aws if ok
-
     cb ok
+
+  #-------------------
+
+  aws   : () -> @json.aws
+  vault : () -> @json.vault
 
 #=========================================================================
