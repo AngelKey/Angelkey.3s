@@ -30,6 +30,7 @@ load_config = (cb) ->
 
 await load_config defer()
 glacier = new AWS.Glacier()
+dynamo = new AWS.DynamoDB({apiVersion : '2012-08-10'})
 
 #=========================================================================
 
@@ -37,7 +38,7 @@ class File
 
   #--------------
 
-  constructor : (@glacier, @vault, @filename) ->
+  constructor : (@glacier, @dynamo, @vault, @filename) ->
     @chunksz = 1024 * 1024
     @buf = new Buffer @chunksz
     @pos = 0
@@ -80,16 +81,22 @@ class File
   open : (cb) ->
     ok = true
 
-    await fs.stat @filename, defer @err, stat
+    await fs.stat @filename, defer @err, @stat
 
     if @err?
       @warn "stat"
       ok = false
-    else if not stat.isFile()
+    else if not @stat.isFile()
       @warn "not a file!"
       ok = false
     else
-      @filesz = stat.size
+      @filesz = @stat.size
+
+    if ok
+      await fs.realpath @filename, defer @err, @realpath
+      if @err?
+        @warn "realpath"
+        ok = false
 
     if ok
       await fs.open @filename, "r", defer @err, @fd
@@ -138,10 +145,31 @@ class File
 
   #--------------
 
+  index : (cb) -> 
+    arg = 
+      TableName : @vault
+      Item : 
+        path : S : @realpath 
+        hash : S : @tree_hash
+        ctime : N : "#{Math.floor @stat.ctime.getTime()}"
+        mtime : N : "#{Math.floor @stat.mtime.getTime()}"
+        atime : N : "#{Date.now()}"
+        glacier_id : S : @id
+    await @dynamo.putItem arg, defer err
+    if err?
+      @warn "dynamo.putItem #{JSON.stringify arg}"
+      ok = false
+    else
+      ok = true
+    cb ok
+
+  #--------------
+
   run : (cb) ->
     await @open defer ok
     @start_progress() if ok
     await @upload defer ok if ok
+    await @index defer ok if ok
     await fs.close @fd, defer() if @fd
     cb ok
 
@@ -168,18 +196,20 @@ class File
 
         @warn "upload #{start}-#{end}" if @err?
     console.log ""
+    @full_hash = full_hash.digest 'hex'
 
     cb not @err
 
   #--------------
 
   finish : (cb) ->
+    @tree_hash = @glacier.buildHashTree @leaves
 
     params = 
       vaultName : @vault
       uploadId : @id
       archiveSize : "#{@pos}"
-      checksum : @glacier.buildHashTree @leaves
+      checksum : @tree_hash
 
     await @glacier.completeMultipartUpload params, defer @err, data
 
@@ -187,7 +217,7 @@ class File
 
 #=========================================================================
 
-file = new File glacier, argv.v, argv._[0]
+file = new File glacier, dynamo, argv.v, argv._[0]
 await file.run defer ok
 process.exit if ok then 0 else -2
 
