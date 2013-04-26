@@ -3,7 +3,7 @@ AWS = require 'aws-sdk'
 
 #=========================================================================
 
-class AwsWrapper
+exports.AwsWrapper = class AwsWrapper
 
   constructor : () ->
 
@@ -14,4 +14,3 @@ class AwsWrapper
 
 #=========================================================================
 
-exports.awsw = new AwsWrapper()

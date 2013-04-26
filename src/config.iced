@@ -1,7 +1,7 @@
 
 path = require 'path'
 fs = require 'fs'
-log = reuqire './log'
+log = require './log'
 
 #=========================================================================
 
@@ -9,15 +9,21 @@ exports.Config = class Config
 
   #-------------------
 
-  constructor : (fn) ->
-    @filename = if fn? then fn
-    else if (f = process.env.MKBKP_CONFIG)? then f
-    else path.join process.env.HOME, ".mkbkp.conf"
+  constructor : () ->
     @json = null
 
   #-------------------
 
-  load : (cb) ->
+  init : (fn) ->
+    @filename = if fn? then fn
+    else if (f = process.env.MKBKP_CONFIG)? then f
+    else path.join process.env.HOME, ".mkbkp.conf"
+
+  #-------------------
+
+  load : (fn, cb) ->
+    @init fn
+    
     await fs.exists @filename, defer ok
 
     if not ok

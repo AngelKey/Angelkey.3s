@@ -28,6 +28,7 @@
     "iced-coffee-script" : "*",
     "progress"           : "*",
     "aws-sdk"            : "*",
-    "optimist"           : "*"
+    "optimist"           : "*",
+    "read"               : "*"
   }
 }
