@@ -1,0 +1,33 @@
+{
+  "name":         "mkbkp",
+  "description":  "A Command-line script to backup files and directories to Amazon Glacier",
+  "keywords":     ["node", "coffe-script", "backup" ],
+  "author":       "Maxwell Krohn",
+  "version":      "0.0.1",
+  "licenses":     [{
+    "type":       "MIT",
+    "url":        "https://raw.github.com/jashkenas/coffee-script/master/LICENSE"
+  }],
+  "engines":      {
+    "node":       ">=0.4.0"
+  },
+  "directories" : {
+    "lib" : "./src"
+  },
+  "main" : "./src/index.iced",
+  "bin":          {
+    "mkbkp" : "./bin/mkbkp.iced"
+  },
+  "homepage":     "http://github.com/maxtaco/mkbkp",
+  "bugs":         "https://github.com/maxtaco/mkbkp/issues",
+  "repository":   {
+    "type": "git",
+    "url": "git://github.com/maxtaco/mkbkp.git"
+  },
+  "dependencies": {
+    "iced-coffee-script" : "*",
+    "progress"           : "*",
+    "aws-sdk"            : "*",
+    "optimist"           : "*"
+  }
+}
