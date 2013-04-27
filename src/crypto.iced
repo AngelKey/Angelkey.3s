@@ -1,6 +1,22 @@
 
 crypto = require 'crypto'
 purepack = require 'purepack'
+log = require './log'
+{constants} = require './constants'
+
+#==================================================================
+
+pack2 = (o) ->
+  b1 = purepack.pack o, 'buffer'
+  b0 = purepack.pack b1.length, 'buffer'
+  b0.concat b1
+
+#==================================================================
+
+# pad datasz bytes to be a multiple of blocksz
+pkcs7_padding = (datasz, blocksz) ->
+  plen = blocksz - (datasz % blocksz)
+  new Buffer (plen for i in plen)
 
 #==================================================================
 
@@ -17,6 +33,10 @@ class AlgoFactory
     2 * @ENC_KEY_SIZE + @MAC_KEY_SIZE
 
   ciphers : () -> [ "aes256", "blowfish" ]
+
+  pad : (buf) ->
+    padding = pkcs7_padding buf.length, @ENC_BLOCK_SIZE
+    buf.concat padding
 
   produce_keys : (bytes) ->
     eks = @ENC_KEY_SIZE
@@ -97,7 +117,7 @@ class CtrIv
     @numbuf = new Buffer @numbuflen
     @start = @bytes 
 
-  next : () ->
+  output : (adv = true) ->
     start = 0
     if @bytes > 4
       @numbuf.writeUInt32BE Math.floor(@i/UINT32_MAX), 0
@@ -106,7 +126,7 @@ class CtrIv
     else 
       @numbuf.writeUInt32BE @i, 0
     @numbuf.copy @block, (gaf.ENC_BLOCK_SIZE - @bytes), (@numbuflen - @bytes), @numbuflen
-    @i++
+    @i++ if adv
     @block
 
 #==================================================================
@@ -114,11 +134,11 @@ class CtrIv
 class Encryptor 
 
   constructor : ({@env, @sin, @sout, @stat}) ->
-    @packed_stat = purepack.pack @stat, 'buffer'
+    @packed_stat = gaf.pad(pack2(@stat, 'buffer'))
 
   #---------------------------
 
-  _prepare_password : (cb) ->
+  _prepare_keys : (cb) ->
     tks = gaf.total_key_size()
     await @env.pwmgr.derive_key_material tks, defer km
     if km
@@ -132,23 +152,112 @@ class Encryptor
 
   _prepare_ciphers : (cb) ->
     ciphers = gaf.cipers()
-    @edsize = @packed_stat.length + @stat.size
-    nblocksz = @edsize / gaf.ENC_BLOCK_SIZE
-
+    @edatasize = @packed_stat.length + @stat.size
+    nblocksz = @edatasize / gaf.ENC_BLOCK_SIZE
     @ciphers = (crypto.createCipher(c, @keys[c]) for c in ciphers)
     @ivs = (new CtrIv(nblocksz) for c in ciphers)
     cb true
 
   #---------------------------
 
+  _prepare_macs : (cb) ->
+    @macs = (crypto.createHmac 'sha256', @keys.hmac)
+
+  #---------------------------
+
+  _write : (block, cb) ->
+    await @sout.write block, defer err
+    ok = true
+    if err
+      log.error "Error writing: #{err}"
+      ok = false
+    else
+      for m in @macs
+        m.update block
+    cb ok
+
+  #---------------------------
+
+  _write_premable : (cb) ->
+    b = Preamble.pack()
+    await @_write b, defer ok
+    cb ok
+
+  #---------------------------
+
+  _make_header : () ->
+    out = 
+      version : constants.VERSION
+      ivs : (iv.output(false) for iv in @ivs)
+      statsize : @packed_stat.length
+      filesize : @stat.size
+    return out
+
+  #---------------------------
+
+  _write_pack : (d,cb) ->
+    await @_write(pack2(d)), defer ok
+    cb ok
+
+  #---------------------------
+
+  _write_header : (cb) ->
+    h = @_make_header()
+    await @_write_pack h, defer ok
+    cb ok
+
+  #---------------------------
+
+  _write_mac : (cb) ->
+    m = @macs.pop()
+    b = new Buffer b.digest(), 'binary'
+    await @_write_pack b, defer ok
+    cb ok
+
+  #---------------------------
+
+  # Assume chunks are aligned in 16-byte boundaries, or this is the last chunk
+  _encrypt : (chunk) ->
+    cl = chunk.length
+
+    # A buffer to encrypt into
+    buf = if @last?.length is cl then @last else new Buffer cl
+
+    nc = Math.floor cl / gaf.ENC_BLOCK_SIZE
+
+    p = 0
+    for i in nc
+      
+
+
+
+  #---------------------------
+
+  _write_body : (cb) ->
+    await @_encrypt @packed_stat, defer ok
+    while ok
+      await @sin.read defer err, block
+      if err
+        log.error "Error reading from input: #{err}"
+        ok = false
+      else if not block?
+        ok = false
+      else 
+        await @_encrypt block, defer ok
+    await @_encrypt null, defer ok
+    cb ok
+
+  #---------------------------
+
   run : (cb) ->
-    await @_prepare_password defer ok if ok
-    await @_prepare_ciphers  defer ok if ok 
-    await @_prepare_macs     defer ok if ok
-    await @_write_header     defer ok if ok
-    await @_write_mac        defer ok if ok
-    await @_write_body       defer ok if ok
-    await @_write_mac        defer ok if ok
+    await @_prepare_keys    defer ok if ok
+    await @_prepare_ciphers defer ok if ok 
+    await @_prepare_macs    defer ok if ok
+    await @_write_preamble  defer ok if ok
+    await @_write_header    defer ok if ok
+    await @_write_mac       defer ok if ok
+    await @_write_body      defer ok if ok
+    await @_write_mac       defer ok if ok
     cb ok
 
 #==================================================================
