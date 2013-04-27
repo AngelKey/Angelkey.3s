@@ -32,7 +32,7 @@ class AlgoFactory
   total_key_size : () ->
     2 * @ENC_KEY_SIZE + @MAC_KEY_SIZE
 
-  ciphers : () -> [ "aes256", "blowfish" ]
+  ciphers : () -> [ "aes-256-cbc", "bf-cbc" ]
 
   pad : (buf) ->
     padding = pkcs7_padding buf.length, @ENC_BLOCK_SIZE
@@ -43,8 +43,8 @@ class AlgoFactory
     mks = @MAC_KEY_SIZE
     parts = keysplit bytes, [ eks, eks, mks ]
     return {
-      aes256   : parts[0]
-      blowfish : parts[1]
+      aes      : parts[0]
+      bf       : parts[1]
       hmac     : parts[2]
     }
 
@@ -105,32 +105,6 @@ log_base_256 = (n) ->
 
 #==================================================================
 
-UINT32_MAX = Math.pow(2,32)
-
-class CtrIv
-
-  constructor : (@nblocks) ->  
-    @i = 0
-    @block = crypto.rng gaf.ENC_BLOCK_SIZE
-    @bytes = log_base_256 @nblocks
-    @numbuflen = if @bytes > 4 then 8 else 4
-    @numbuf = new Buffer @numbuflen
-    @start = @bytes 
-
-  output : (adv = true) ->
-    start = 0
-    if @bytes > 4
-      @numbuf.writeUInt32BE Math.floor(@i/UINT32_MAX), 0
-      @numbuf.writeUInt32BE (@i % UINT32_MAX), 4    
-      console.log @numbuf
-    else 
-      @numbuf.writeUInt32BE @i, 0
-    @numbuf.copy @block, (gaf.ENC_BLOCK_SIZE - @bytes), (@numbuflen - @bytes), @numbuflen
-    @i++ if adv
-    @block
-
-#==================================================================
-
 class Encryptor 
 
   constructor : ({@env, @sin, @sout, @stat}) ->
@@ -154,8 +128,11 @@ class Encryptor
     ciphers = gaf.cipers()
     @edatasize = @packed_stat.length + @stat.size
     nblocksz = @edatasize / gaf.ENC_BLOCK_SIZE
-    @ciphers = (crypto.createCipher(c, @keys[c]) for c in ciphers)
-    @ivs = (new CtrIv(nblocksz) for c in ciphers)
+    @ivs = (crypto.rng(gaf.ENC_KEY_SIZE) for i in ciphers)
+    @ciphers = for c, i in ciphers
+      key = @keys[c.split("-")[0]]
+      iv = @ivs[i]
+      crypto.createCipheriv(c, key, iv)
     cb true
 
   #---------------------------
@@ -188,7 +165,7 @@ class Encryptor
   _make_header : () ->
     out = 
       version : constants.VERSION
-      ivs : (iv.output(false) for iv in @ivs)
+      ivs : @ivs
       statsize : @packed_stat.length
       filesize : @stat.size
     return out
@@ -216,18 +193,18 @@ class Encryptor
 
   #---------------------------
 
-  # Assume chunks are aligned in 16-byte boundaries, or this is the last chunk
   _encrypt : (chunk) ->
+    for c in @ciphers
+      chunk = c.update chunk
+
     cl = chunk.length
 
-    # A buffer to encrypt into
-    buf = if @last?.length is cl then @last else new Buffer cl
 
     nc = Math.floor cl / gaf.ENC_BLOCK_SIZE
 
     p = 0
     for i in nc
-      
+
 
 
 
