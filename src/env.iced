@@ -19,6 +19,12 @@ class Env
 
   parse_options : (usage, opts_passed = {}) ->
     opts = 
+      e :
+        alias : 'email'
+        describe : 'email address, used for salting passwords & other things'
+      s : 
+        alias : 'salt'
+        describe : 'salt used as salt and nothing else; overrides emails'
       p :
         alias : 'password'
         describe : 'password used for encryption / decryption'
@@ -64,9 +70,9 @@ class Env
 
   _init_pwmgr : () ->
     pwopts =
-      from_file  : @config.password
-      from_arg   : @argv.p
+      passwords  : @password()
       no_prompt  : @argv.P
+      salt       : @salt_or_email()
 
     @pwmgr.init pwopts
 
@@ -76,6 +82,11 @@ class Env
   glacier : () -> @aws.glacier
 
   #-------------------
+
+  password : () -> @argv.p or @config.password
+  email    : () -> @argv.e or @config.email
+  salt     : () -> @argv.s or @config.salta
+  salt_or_email : () -> @salt() or @email()
 
 #=========================================================================
 
