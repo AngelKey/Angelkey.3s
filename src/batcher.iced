@@ -6,15 +6,16 @@ class Trickler extends stream.Readable
 
   constructor : ->
     super()
-    @i = 0
+    @_loop()
 
   _read : (sz) ->
-    await setTimeout defer(), 500
-    if @i >= 29
-      @emit 'end'
-    else
-      @push new Buffer (@i for j in [0...23]) 
-    @i++
+
+  _loop : () ->
+    for i in [0...29]
+      await setTimeout defer(), 50
+      @push new Buffer (i for j in [0...19]) 
+    @emit 'end'
+
 
 class Batcher
 
@@ -56,7 +57,7 @@ class Batcher
     cb @error, eof, ret
       
 t = new Trickler()
-b = new Batcher t, 41
+b = new Batcher t, 21
 
 eof = false
 while not eof

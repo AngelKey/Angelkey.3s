@@ -127,18 +127,6 @@ class Encryptor extends stream.Duplex
 
   #---------------------------
 
-  _prepare_keys : (cb) ->
-    tks = gaf.total_key_size()
-    await @env.pwmgr.derive_key_material tks, defer km
-    if km
-      @keys = gaf.produce_keys km
-      ok = true
-    else
-      ok = false
-    cb ok
-
-  #---------------------------
-
   _prepare_ciphers : (cb) ->
     ciphers = gaf.cipers()
     @edatasize = @packed_stat.length + @stat.size
@@ -165,7 +153,8 @@ class Encryptor extends stream.Duplex
 
   #---------------------------
 
-  # Cascading final updates....
+  # Cascading final update, the final from one cipher needs to be
+  # run through all of the downstream ciphers...
   _final : () ->
     bufs = for c,i in @ciphers
       chunk = c.final()
@@ -176,36 +165,22 @@ class Encryptor extends stream.Duplex
 
   #---------------------------
 
-  _process : (chunk) ->
-    chunk = @_cipher_fn chunk
-    @_mac chunk
-    chunk
-
-  #---------------------------
-
-  _flush_ciphers : () ->
-    chunk = @_final()
-    @_mac chunk
-    chunk
+  _process : (chunk)  -> @_mac @_cipher_fn chunk
+  _flush_ciphers : () -> @_mac @_final()
 
   #---------------------------
 
   _prepare_macs : (cb) ->
-    @macs = (crypto.createHmac 'sha256', @keys.hmac)
+    # One mac for the header, and another for the whole file (including
+    # the header MAC)
+    @macs = (crypto.createHmac('sha256', @keys.hmac) for i in [0...2])
 
   #---------------------------
 
   _mac : (block) ->
     for m in @macs
       m.update block
-
-  #---------------------------
-
-  _push_headers : () ->
-    if @plain_blocks?
-      buf = new Buffer.concat @plain_blocks
-      @plain_blocks = null
-      @push buf
+    block
 
   #---------------------------
 
@@ -243,11 +218,10 @@ class Encryptor extends stream.Duplex
 
   #---------------------------
 
-  init : (cb) ->
+  init : () ->
 
-    await @_prepare_keys    defer ok if ok
-    await @_prepare_ciphers defer ok if ok 
-    await @_prepare_macs    defer ok if ok
+    @_prepare_ciphers()
+    @_prepare_macs()
 
     @_write_preamble()
     @_write_header()
@@ -266,7 +240,16 @@ class Encryptor extends stream.Duplex
     # and then call it quits....
     @once 'finish', => @_flush()
 
-    cb ok
+  #---------------------------
 
+  # Called before init() to key our ciphers and MACs.
+  setup_keys : (cb) ->
+    tks = gaf.total_key_size()
+    await @env.pwmgr.derive_key_material tks, defer km
+    if km
+      @keys = gaf.produce_keys km
+      ok = true
+    else ok = false
+    cb ok
 
 #==================================================================
