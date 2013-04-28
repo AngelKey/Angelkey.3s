@@ -99,8 +99,8 @@ keysplit = (keys, splits) ->
 
 class Encryptor extends stream.Duplex
 
-  constructor : ({@env, @stat}) ->
-    super()
+  constructor : ({@env, @stat}, pipe_opts) ->
+    super pipe_opts
     @packed_stat = gaf.pad(pack2(@stat, 'buffer'))
     @_disable_ciphers()
     @_disable_streaming()
