@@ -9,11 +9,11 @@ class Trickler extends stream.Readable
     @i = 0
 
   _read : (sz) ->
-    await setTimeout defer(), 100
-    if @i >= 35
+    await setTimeout defer(), 5
+    if @i >= 29
       @emit 'end'
     else
-      @push new Buffer [@i]
+      @push new Buffer (@i for j in [0...23]) 
     @i++
 
 class Batcher
@@ -22,7 +22,6 @@ class Batcher
     @eof = false
     @readable = false
     @stream.on 'readable', () =>
-      @readable = true
       @trigger()
     @stream.on 'end', () =>
       @eof = true
@@ -38,22 +37,21 @@ class Batcher
       t()
 
   read : (cb) ->
-    eof = false
     ret = null
-    while not eof and not ret
-      if @eof
-        ret = @stream.read()
-        eof = true
-      else if @readable
-        @readable = false
-        ret = @stream.read @sz
-      else
-        await
-          @_cb = defer()
+    eof = false
+    while not ret and not eof
+      n = if @eof then null else @sz
+      ret = @stream.read n
+      console.log "read returned ---> #{if ret? then ret.length else 0}"
+
+      if @eof and ret? and ret.length < @sz then eof = true
+      else if not ret? and @eof then eof = true
+      else if not ret? then await @_cb = defer()
+
     cb eof, ret
       
 t = new Trickler()
-b = new Batcher t, 10
+b = new Batcher t, 41
 
 eof = false
 while not eof
