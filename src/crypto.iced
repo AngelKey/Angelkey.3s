@@ -97,15 +97,6 @@ keysplit = (keys, splits) ->
 
 #==================================================================
 
-log_base_256 = (n) -> 
-  ret = 0
-  while n > 0
-    n = Math.floor(n / 256)
-    ret++
-  ret
-
-#==================================================================
-
 class Encryptor extends stream.Duplex
 
   constructor : ({@env, @stat}) ->
