@@ -3,13 +3,14 @@ crypto = require 'crypto'
 purepack = require 'purepack'
 log = require './log'
 {constants} = require './constants'
+stream = require 'stream'
 
 #==================================================================
 
 pack2 = (o) ->
   b1 = purepack.pack o, 'buffer'
   b0 = purepack.pack b1.length, 'buffer'
-  b0.concat b1
+  Buffer.concat [ b0, b1 ]
 
 #==================================================================
 
@@ -36,7 +37,7 @@ class AlgoFactory
 
   pad : (buf) ->
     padding = pkcs7_padding buf.length, @ENC_BLOCK_SIZE
-    buf.concat padding
+    Buffer.concat [ buf, padding ]
 
   produce_keys : (bytes) ->
     eks = @ENC_KEY_SIZE
@@ -63,7 +64,7 @@ class Preamble
   @pack : () ->
     i = new Buffer 4
     i.writeUInt32BE Preamble.FILE_VERSION, 0
-    Preamble.FILE_MAGIC.concat i
+    Buffer.concat [ Preamble.FILE_MAGIC, i ]
 
   @unpack : (b) ->
     known = Preamble.pack()
@@ -105,10 +106,33 @@ log_base_256 = (n) ->
 
 #==================================================================
 
-class Encryptor 
+class Encryptor extends stream.Duplex
 
-  constructor : ({@env, @sin, @sout, @stat}) ->
+  constructor : ({@env, @stat}) ->
+    super()
     @packed_stat = gaf.pad(pack2(@stat, 'buffer'))
+    @_disable_ciphers()
+    @_disable_streaming()
+
+  #---------------------------
+
+  _enable_ciphers   : -> @_cipher_fn = (block) => @_encrypt block
+  _disable_ciphers  : -> @_cipher_fn = (block) => block
+
+  #---------------------------
+
+  _disable_streaming : ->  @_sink_fn = (block) -> @_blocks.push block
+  _enable_streaming  : -> 
+    buf = Buffers.concat @_blocks
+    @_blocks = []
+    @push buf
+    @_sink_fn = (block) -> @push block
+
+  #---------------------------
+
+  _send_to_sink : (block, cb) ->
+    @_sink_fn @_process block
+    cb() if cb?
 
   #---------------------------
 
@@ -129,11 +153,49 @@ class Encryptor
     @edatasize = @packed_stat.length + @stat.size
     nblocksz = @edatasize / gaf.ENC_BLOCK_SIZE
     @ivs = (crypto.rng(gaf.ENC_KEY_SIZE) for i in ciphers)
+
+    prev = null
+
     @ciphers = for c, i in ciphers
       key = @keys[c.split("-")[0]]
       iv = @ivs[i]
       crypto.createCipheriv(c, key, iv)
+
     cb true
+
+  #---------------------------
+
+  # Chain the ciphers together, without any additional buffering from
+  # pipes.  We're going to simplify this alot...
+  _encrypt : (chunk) ->
+    for c in @ciphers
+      chunk = c.update chunk
+    chunk
+
+  #---------------------------
+
+  # Cascading final updates....
+  _final : () ->
+    bufs = for c,i in @ciphers
+      chunk = c.final()
+      for d in @ciphers[(i+1)...]
+        chunk = d.update chunk
+      chunk
+    Buffer.concat bufs
+
+  #---------------------------
+
+  _process : (chunk) ->
+    chunk = @_cipher_fn chunk
+    @_mac chunk
+    chunk
+
+  #---------------------------
+
+  _flush_ciphers : () ->
+    chunk = @_final()
+    @_mac chunk
+    chunk
 
   #---------------------------
 
@@ -142,23 +204,33 @@ class Encryptor
 
   #---------------------------
 
-  _write : (block, cb) ->
-    await @sout.write block, defer err
-    ok = true
-    if err
-      log.error "Error writing: #{err}"
-      ok = false
-    else
-      for m in @macs
-        m.update block
-    cb ok
+  _mac : (block) ->
+    for m in @macs
+      m.update block
 
   #---------------------------
 
-  _write_premable : (cb) ->
-    b = Preamble.pack()
-    await @_write b, defer ok
-    cb ok
+  _push_headers : () ->
+    if @plain_blocks?
+      buf = new Buffer.concat @plain_blocks
+      @plain_blocks = null
+      @push buf
+
+  #---------------------------
+
+  # Implement the Duplex interface. Note that reading
+  # doesn't really do anything, all the lifting is done
+  # on the write sid of things
+  _write : (block, cb) -> @_send_to_sink block, cb
+  _read  : (size) ->
+
+  #---------------------------
+
+  _write_premable : () -> @_send_to_sink Preamble.pack()
+  _write_pack     : (d) -> @_send_to_sink pack2 d
+  _write_header   : () -> @_write_pack @_make_header()
+  _write_mac      : () -> @_write_pack @macs.pop().digest()
+  _write_metadata : () -> @_send_to_sink @packed_stat
 
   #---------------------------
 
@@ -172,80 +244,38 @@ class Encryptor
 
   #---------------------------
 
-  _write_pack : (d,cb) ->
-    await @_write(pack2(d)), defer ok
-    cb ok
+  _flush : () ->
+    @_flush_ciphers()
+    @_disable_ciphers()
+    @_write_mac()
+    @emit 'end'
 
   #---------------------------
 
-  _write_header : (cb) ->
-    h = @_make_header()
-    await @_write_pack h, defer ok
-    cb ok
+  init : (cb) ->
 
-  #---------------------------
-
-  _write_mac : (cb) ->
-    m = @macs.pop()
-    b = new Buffer b.digest(), 'binary'
-    await @_write_pack b, defer ok
-    cb ok
-
-  #---------------------------
-
-  _encrypt : (chunk) ->
-    for c in @ciphers
-      chunk = c.update chunk
-
-    cl = chunk.length
-
-
-    nc = Math.floor cl / gaf.ENC_BLOCK_SIZE
-
-    p = 0
-    for i in nc
-
-
-
-
-  #---------------------------
-
-  _write_body : (cb) ->
-    await @_encrypt @packed_stat, defer ok
-    while ok
-      await @sin.read defer err, block
-      if err
-        log.error "Error reading from input: #{err}"
-        ok = false
-      else if not block?
-        ok = false
-      else 
-        await @_encrypt block, defer ok
-    await @_encrypt null, defer ok
-    cb ok
-
-  #---------------------------
-
-  run : (cb) ->
     await @_prepare_keys    defer ok if ok
     await @_prepare_ciphers defer ok if ok 
     await @_prepare_macs    defer ok if ok
-    await @_write_preamble  defer ok if ok
-    await @_write_header    defer ok if ok
-    await @_write_mac       defer ok if ok
-    await @_write_body      defer ok if ok
-    await @_write_mac       defer ok if ok
+
+    @_write_preamble()
+    @_write_header()
+    @_write_mac()
+
+    # Finally, we're starting to encrypt...
+    @_enable_ciphers()
+    @_write_metadata()
+
+    # Now, we're all set, and subsequent operations are going
+    # to stream to the output....
+    @_enable_streaming()
+
+    # Get ready for end times, too...When we're finished being
+    # written to, we need to flush our ciphers, write out a MAC
+    # and then call it quits....
+    @once 'finish', => @_flush()
+
     cb ok
 
+
 #==================================================================
-
-
-civ = new CtrIv 12900000000000
-for i in [0...200]
-  console.log civ.next()
-
-
-
-
-
-
