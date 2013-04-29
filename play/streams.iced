@@ -36,6 +36,15 @@ class Connector extends stream.Duplex
     else 
       @_reads++
 
+class Transform extends stream.Transform
+
+  constructor : ->
+    super()
+
+  _transform : (block, encoding, cb) ->
+    @push block
+    cb()
+
 class SlowDrain extends stream.Writable
 
   constructor : ->
@@ -47,7 +56,7 @@ class SlowDrain extends stream.Writable
     await setTimeout defer(), len/500
     cb()
 
-
 sw = new SlowDrain()
 connector = new Connector()
-reader.pipe(connector).pipe(sw)
+transform = new Transform()
+reader.pipe(transform).pipe(sw)

@@ -85,7 +85,7 @@ class Env
 
   password : () -> @argv.p or @config.password
   email    : () -> @argv.e or @config.email
-  salt     : () -> @argv.s or @config.salta
+  salt     : () -> @argv.s or @config.salt
   salt_or_email : () -> @salt() or @email()
 
 #=========================================================================

@@ -33,7 +33,7 @@ class AlgoFactory
   total_key_size : () ->
     2 * @ENC_KEY_SIZE + @MAC_KEY_SIZE
 
-  ciphers : () -> [ "aes-256-cbc", "bf-cbc" ]
+  ciphers : () -> [ "aes-256-cbc", "camellia-256-cbc" ]
 
   pad : (buf) ->
     padding = pkcs7_padding buf.length, @ENC_BLOCK_SIZE
@@ -97,11 +97,11 @@ keysplit = (keys, splits) ->
 
 #==================================================================
 
-class Encryptor extends stream.Duplex
+class Encryptor extends stream.Transform
 
-  constructor : ({@env, @stat}, pipe_opts) ->
+  constructor : ({@stat}, pipe_opts) ->
     super pipe_opts
-    @packed_stat = gaf.pad(pack2(@stat, 'buffer'))
+    @packed_stat = pack2(@stat, 'buffer')
     @_disable_ciphers()
     @_disable_streaming()
 
@@ -184,11 +184,8 @@ class Encryptor extends stream.Duplex
 
   #---------------------------
 
-  # Implement the Duplex interface. Note that reading
-  # doesn't really do anything, all the lifting is done
-  # on the write sid of things
-  _write : (block, cb) -> @_send_to_sink block, cb
-  _read  : (size) ->
+  _transform : (block, encoding, cb) -> 
+    @_send_to_sink block, cb
 
   #---------------------------
 
@@ -210,11 +207,11 @@ class Encryptor extends stream.Duplex
 
   #---------------------------
 
-  _flush : () ->
+  _flush : (cb) ->
     @_flush_ciphers()
     @_disable_ciphers()
     @_write_mac()
-    @emit 'end'
+    cb()
 
   #---------------------------
 
@@ -235,17 +232,12 @@ class Encryptor extends stream.Duplex
     # to stream to the output....
     @_enable_streaming()
 
-    # Get ready for end times, too...When we're finished being
-    # written to, we need to flush our ciphers, write out a MAC
-    # and then call it quits....
-    @once 'finish', => @_flush()
-
   #---------------------------
 
   # Called before init() to key our ciphers and MACs.
-  setup_keys : (cb) ->
+  setup_keys : (env, cb) ->
     tks = gaf.total_key_size()
-    await @env.pwmgr.derive_key_material tks, defer km
+    await env.pwmgr.derive_key_material tks, defer km
     if km
       @keys = gaf.produce_keys km
       ok = true
