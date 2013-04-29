@@ -235,9 +235,9 @@ class Encryptor extends stream.Transform
   #---------------------------
 
   # Called before init() to key our ciphers and MACs.
-  setup_keys : (env, cb) ->
+  setup_keys : (pwm, cb) ->
     tks = gaf.total_key_size()
-    await env.pwmgr.derive_key_material tks, defer km
+    await pwm.derive_key_material tks, defer km
     if km
       @keys = gaf.produce_keys km
       ok = true
