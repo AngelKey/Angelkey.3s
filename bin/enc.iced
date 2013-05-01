@@ -8,7 +8,7 @@ class Command extends cmd.Base
    
   #-----------------
 
-  @OPTS = 
+  OPTS :
     o : 
       alias : "output"
       describe : "output file to write to"
@@ -17,9 +17,13 @@ class Command extends cmd.Base
       describe : "remove the original file after encryption"
       boolean : true
 
+  USAGE : "Usage: $0 [opts] <infile>"
+
   #-----------------
    
   constructor : () ->
-    super Command.OPTS
+
+  #-----------------
+
 
 #=========================================================================
