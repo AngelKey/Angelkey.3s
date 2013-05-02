@@ -21,9 +21,7 @@ exports.PasswordManager = class PasswordManager
   #-------------------
 
   _prompt_1 : (prompt, cb) ->
-    console.log "X1"
     await read { prompt : "#{prompt}> ", silent : true }, defer err, res
-    console.log "X2"
     if err
       log.error "In prompt: #{err}"
       res = null
@@ -82,7 +80,8 @@ exports.PasswordManager = class PasswordManager
     if not @_pw?
       if not (pw = @opts.password)? and not @opts.no_prompt
         await @prompt_for_pw is_new, defer pw
-    @_pw = pw
+      log.info "password is #{pw}"
+      @_pw = pw
     cb @_pw
 
 #=========================================================================

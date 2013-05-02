@@ -6,6 +6,13 @@ log = require './log'
 
 #=========================================================================
 
+pick = (args...) ->
+  for a in args
+    return a if a?
+  return null
+
+#=========================================================================
+
 exports.Base = class Base
 
   #-------------------
@@ -74,7 +81,7 @@ exports.Base = class Base
 
   _init_pwmgr : () ->
     pwopts =
-      passwords  : @password()
+      password   : @password()
       no_prompt  : @argv.P
       salt       : @salt_or_email()
 
@@ -87,10 +94,10 @@ exports.Base = class Base
 
   #-------------------
 
-  password : () -> @argv.p or @config.password
-  email    : () -> @argv.e or @config.email
-  salt     : () -> @argv.s or @config.salt
-  salt_or_email : () -> @salt() or @email()
+  password : () -> pick @argv.p, @config.password
+  email    : () -> pick @argv.e, @config.email
+  salt     : () -> pick @argv.s, @config.salt
+  salt_or_email : () -> pick @salt(), @email()
 
 #=========================================================================
 

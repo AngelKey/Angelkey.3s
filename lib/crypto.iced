@@ -172,6 +172,7 @@ exports.Encryptor = class Encryptor extends stream.Transform
   _prepare_macs : () ->
     # One mac for the header, and another for the whole file (including
     # the header MAC)
+    log.info "preparing macs!"
     @macs = (crypto.createHmac('sha256', @keys.hmac) for i in [0...2])
 
   #---------------------------
