@@ -80,7 +80,6 @@ exports.PasswordManager = class PasswordManager
     if not @_pw?
       if not (pw = @opts.password)? and not @opts.no_prompt
         await @prompt_for_pw is_new, defer pw
-      log.info "password is #{pw}"
       @_pw = pw
     cb @_pw
 
