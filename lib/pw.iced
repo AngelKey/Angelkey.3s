@@ -21,7 +21,9 @@ exports.PasswordManager = class PasswordManager
   #-------------------
 
   _prompt_1 : (prompt, cb) ->
-    await read { prompt : "#{prompt}> ", silent : "true" }, defer err, res
+    console.log "X1"
+    await read { prompt : "#{prompt}> ", silent : true }, defer err, res
+    console.log "X2"
     if err
       log.error "In prompt: #{err}"
       res = null
@@ -49,7 +51,7 @@ exports.PasswordManager = class PasswordManager
     while go and not res
       await @_prompt_1 'passwrd', defer pw1
       if pw1?
-        await @_prompt_2 'confirm', defer pw2
+        await @_prompt_1 'confirm', defer pw2
         if pw1 is pw2 then res = pw1
         else log.warn "Password didn't match"
       else
@@ -79,7 +81,7 @@ exports.PasswordManager = class PasswordManager
   get_password : (is_new, cb) ->
     if not @_pw?
       if not (pw = @opts.password)? and not @opts.no_prompt
-        await @prompt_for_pw is_new defer pw
+        await @prompt_for_pw is_new, defer pw
     @_pw = pw
     cb @_pw
 
