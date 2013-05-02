@@ -6,7 +6,7 @@ log = require './log'
 
 #=========================================================================
 
-class Base
+exports.Base = class Base
 
   #-------------------
 
@@ -47,11 +47,10 @@ class Base
     opti = require('optimist').options(opts).options(opts_passed).usage(usage)
 
     @argv = opti.argv
-    console.log @argv
 
     ok = true
 
-    if @argv.h
+    if @argv.h or not @check_args()
       opti.showHelp()
       ok = false
 
@@ -59,10 +58,15 @@ class Base
 
   #-------------------
 
+  need_aws : () -> true
+  check_args : () -> true
+
+  #-------------------
+
   init : (usage, opts, cb) ->
     ok = @parse_options usage, opts     
     await @config.load @argv.c, defer ok  if ok
-    ok = @aws.init @config.aws            if ok
+    ok = @aws.init @config.aws            if ok and @need_aws()
     ok = @_init_pwmgr()                   if ok
     cb ok
 

@@ -57,14 +57,13 @@ gaf = new AlgoFactory()
 
 class Preamble
 
-  @FILE_VERSION = 1
-  @FILE_MAGIC = new Buffer [ 0x88, 0xb4, 0x84, 0xb8, 0x58, 0x36, 0x39, 0x9f ]
   @LEN = 12
 
   @pack : () ->
+    C = constants.Preamble
     i = new Buffer 4
-    i.writeUInt32BE Preamble.FILE_VERSION, 0
-    Buffer.concat [ Preamble.FILE_MAGIC, i ]
+    i.writeUInt32BE C.FILE_VERSION, 0
+    Buffer.concat [ new Buffer(C.FILE_MAGIC), i ]
 
   @unpack : (b) ->
     known = Preamble.pack()
@@ -185,6 +184,7 @@ class Encryptor extends stream.Transform
   #---------------------------
 
   _transform : (block, encoding, cb) -> 
+    console.log "got block #{block}"
     @_send_to_sink block, cb
 
   #---------------------------

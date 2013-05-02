@@ -29,6 +29,10 @@
     "progress"           : "*",
     "aws-sdk"            : "*",
     "optimist"           : "*",
-    "read"               : "*"
+    "read"               : "*",
+    "bignum"             : "*",
+    "colors"             : "*",
+    "read"               : "*",
+    "purepack"           : "*"
   }
 }

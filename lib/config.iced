@@ -29,7 +29,7 @@ exports.Config = class Config
     if not ok
       log.error "Cannot find config file #{@filename}"
     else
-      await fs.readFile @filename defer err, file
+      await fs.readFile @filename, defer err, file
       if err?
         log.error "Cannot read file #{@filename}: #{err}"
         ok = false
@@ -47,6 +47,11 @@ exports.Config = class Config
         ok = false
 
     cb ok
+
+  #-------------------
+
+  file_extension : () ->
+    @json.file_extension or ".mke"
 
   #-------------------
 
