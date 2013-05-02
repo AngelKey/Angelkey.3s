@@ -1,7 +1,7 @@
 
 read = require 'read'
 log = require './log'
-crypto = require './crypto'
+crypto = require 'crypto'
 
 #=========================================================================
 
@@ -77,9 +77,8 @@ exports.PasswordManager = class PasswordManager
   #-------------------
 
   get_password : (is_new, cb) ->
-    if not @_pw
-      pw = opts.password
-      if not pw and not opts.no_prompt
+    if not @_pw?
+      if not (pw = @opts.password)? and not @opts.no_prompt
         await @prompt_for_pw is_new defer pw
     @_pw = pw
     cb @_pw
