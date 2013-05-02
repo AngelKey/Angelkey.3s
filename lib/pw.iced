@@ -60,12 +60,12 @@ exports.PasswordManager = class PasswordManager
 
   #-------------------
 
-  derive_key_material : (sz, cb) ->
+  derive_key_material : (sz, is_new, cb) ->
     ret = null
     if not (salt = @opts.salt)?
       log.error "No salt given; can't derive keys"
     else
-      await @get_password defer pw
+      await @get_password is_new, defer pw
       if not pw
         log.error "No password given; can't derive keys"
 

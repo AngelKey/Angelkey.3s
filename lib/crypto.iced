@@ -84,7 +84,7 @@ msgpack_packed_numlen : (byt) ->
 
 #==================================================================
 
-keysplit = (keys, splits) ->
+keysplit = (key, splits) ->
   ret = []
   start = 0
   for s in splits
@@ -169,7 +169,7 @@ exports.Encryptor = class Encryptor extends stream.Transform
 
   #---------------------------
 
-  _prepare_macs : (cb) ->
+  _prepare_macs : () ->
     # One mac for the header, and another for the whole file (including
     # the header MAC)
     @macs = (crypto.createHmac('sha256', @keys.hmac) for i in [0...2])
@@ -184,7 +184,6 @@ exports.Encryptor = class Encryptor extends stream.Transform
   #---------------------------
 
   _transform : (block, encoding, cb) -> 
-    console.log "got block #{block}"
     @_send_to_sink block, cb
 
   #---------------------------
@@ -237,7 +236,7 @@ exports.Encryptor = class Encryptor extends stream.Transform
   # Called before init() to key our ciphers and MACs.
   setup_keys : (pwm, cb) ->
     tks = gaf.total_key_size()
-    await pwm.derive_key_material tks, defer km
+    await pwm.derive_key_material tks, true, defer km
     if km
       @keys = gaf.produce_keys km
       ok = true
