@@ -96,7 +96,7 @@ keysplit = (keys, splits) ->
 
 #==================================================================
 
-class Encryptor extends stream.Transform
+exports.Encryptor = class Encryptor extends stream.Transform
 
   constructor : ({@stat}, pipe_opts) ->
     super pipe_opts

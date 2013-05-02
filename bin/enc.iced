@@ -90,27 +90,21 @@ class Command extends cmd.Base
 
   run : (cb) ->
     await @init @USAGE, @OPTS, defer ok
-    console.log "A"
-    ok = true
     if ok
       @infn = @argv._[0]
       await myfs.open { filename :  @infn }, defer err, istream, stat
       ok = false if err?
-    console.log "B"
     if ok
       await @open_output defer ok, ostream
-    console.log "C"
     if ok
-      enc = new crypto.Encryptor { stat }
+      enc = new mycrypto.Encryptor { stat }
       await enc.setup_keys @pwmgr, defer ok
       if not ok
         log.error "Could not setup encryption keys"
-    console.log "D"
     if ok
       istream.pipe(enc).pipe(ostream)
       await istream.once 'end', defer()
       await ostream.once 'finish', defer()
-    console.log "E"
     if ok
       await @close_files defer()
     cb ok

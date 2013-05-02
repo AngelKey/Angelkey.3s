@@ -43,8 +43,11 @@ exports.Config = class Config
 
     if ok 
       for key in [ 'aws', 'vault' ]
-        log.error "Missing JSON component '#{key}' in #{@filename}" unless @json?[key]?
-        ok = false
+        unless @json?[key]?
+          log.error "Missing JSON component '#{key}' in #{@filename}" unless @json?[key]?
+          ok = false
+
+    log.warn "Failed to load config" unless ok
 
     cb ok
 

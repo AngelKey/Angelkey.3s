@@ -64,7 +64,7 @@ exports.Base = class Base
   #-------------------
 
   init : (usage, opts, cb) ->
-    ok = @parse_options usage, opts     
+    ok = @parse_options usage, opts 
     await @config.load @argv.c, defer ok  if ok
     ok = @aws.init @config.aws            if ok and @need_aws()
     ok = @_init_pwmgr()                   if ok
