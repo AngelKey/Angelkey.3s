@@ -4,6 +4,7 @@ purepack = require 'purepack'
 log = require './log'
 {constants} = require './constants'
 stream = require 'stream'
+{Queue} = require './queue'
 
 #==================================================================
 
@@ -18,6 +19,14 @@ pack2 = (o) ->
 pkcs7_padding = (datasz, blocksz) ->
   plen = blocksz - (datasz % blocksz)
   new Buffer (plen for i in plen)
+
+#==================================================================
+
+bufeq : (b1, b2) ->
+  return false unless b1.length is b2.length
+  for b, i in b1
+    return false unless b is b2[i]
+  return true
 
 #==================================================================
 
@@ -58,20 +67,15 @@ gaf = new AlgoFactory()
 
 class Preamble
 
-  @LEN = 12
-
   @pack : () ->
     C = constants.Preamble
     i = new Buffer 4
     i.writeUInt32BE C.FILE_VERSION, 0
     Buffer.concat [ new Buffer(C.FILE_MAGIC), i ]
 
-  @unpack : (b) ->
-    known = Preamble.pack()
-    return false unless known.length is b.length
-    for c,i in known
-      return false unless c is b[i]
-    return true
+  @unpack : (b) -> bufeq Preamble.pack(), b
+  
+  @len : () -> 12
 
 #==================================================================
 
@@ -103,6 +107,7 @@ class Transform extends stream.Transform
 
   constructor : (pipe_opts) ->
     super pipe_opts
+    @_blocks = []
 
   #---------------------------
 
@@ -114,6 +119,9 @@ class Transform extends stream.Transform
   _disable_streaming : ->  
     @_blocks = []
     @_sink_fn = (block) -> @_blocks.push block
+
+  #---------------------------
+
   _enable_streaming  : -> 
     buf = Buffer.concat @_blocks
     @_blocks = []
@@ -158,11 +166,6 @@ class Transform extends stream.Transform
       key = @keys[c.split("-")[0]]
       iv = @ivs[i]
       crypto.createCipheriv(c, key, iv)
-
-  #---------------------------
-
-  _transform : (block, encoding, cb) -> 
-    @_send_to_sink block, cb
 
   #---------------------------
 
@@ -259,6 +262,11 @@ exports.Encryptor = class Encryptor extends Transform
 
   #---------------------------
 
+  _transform : (block, encoding, cb) -> 
+    @_send_to_sink block, cb
+
+  #---------------------------
+
   init : (cb) ->
     await @setup_keys true, defer ok
     @init_stream() if ok
@@ -270,5 +278,67 @@ exports.Decryptor = class Decryptor extends Transform
 
   constructor : (pipe_opts) ->
     super pipe_opts
+    @_body = false
+    @_q = new Queue
+
+  #---------------------------
+
+  _read_preamble : (cb) ->
+    await @_q.read Premable.len(), defer b
+    ok = Preamble.unpack b 
+    log.error "Failed to unpack preamble: #{b.inspect()}" unless ok
+    cb ok
+
+  #---------------------------
+
+  _read_unpack : (cb) ->
+    await @_q.read 1, defer b
+    framelen = msgpack_packed_numlen b
+    if framelen is 0
+      log.error "Bad msgpack len header: #{b.inspect()}"
+    else
+      await @_q.read framelen, defer b
+      [err, frame] = purepack.unpack b 
+      if err?
+        log.error "In reading msgpack frame: #{err}"
+      else if not (typeof(frame) is number)
+        log.error "Expected frame as a number: got #{frame}"
+      else if not 
+        await @_q.read frame, defer b
+        [err, out] = purepack.unpack b
+        log.error "In unpacking #{b.inspect()}: #{err}" if err?
+    cb out
+
+  #---------------------------
+
+  _read_header : (cb) ->
+    ok = false
+    await @_read_unpack defer @hdr
+    if not @hdr?
+      log.error "Failed to read header"
+    else if @hdr.version isnt constants.VERSION
+      log.error "Can't deal with versions other than #{constants.VERSION}; got #{@hdr.version}"
+    else if not (@ivs = @hdr.ivs)? or not (@ivs.length is 2)
+      log.error "Malformed headers; didn't find two IVs"
+    else
+      ok = true
+    cb ok
+
+  #---------------------------
+
+  init_stream : (cb) ->
+    ok = true
+    await @_read_preamble defer ok
+    await @_read_header   defer ok if ok
+    cb ok
+
+  #---------------------------
+
+  _transform : (block, encoding, cb) ->
+    if @_body
+      await @_stream_body block, defer()
+    else
+      @_q.push block
+    cb()
 
 #==================================================================
