@@ -43,11 +43,12 @@ class AlgoFactory
     eks = @ENC_KEY_SIZE
     mks = @MAC_KEY_SIZE
     parts = keysplit bytes, [ eks, eks, mks ]
-    return {
+    ret = {
       aes      : parts[0]
-      bf       : parts[1]
+      camellia : parts[1]
       hmac     : parts[2]
     }
+    ret
 
 #==================================================================
 
@@ -98,7 +99,7 @@ keysplit = (key, splits) ->
 
 exports.Encryptor = class Encryptor extends stream.Transform
 
-  constructor : ({@stat}, pipe_opts) ->
+  constructor : ({@stat, @pwmgr}, pipe_opts) ->
     super pipe_opts
     @packed_stat = pack2(@stat, 'buffer')
     @_disable_ciphers()
@@ -111,9 +112,11 @@ exports.Encryptor = class Encryptor extends stream.Transform
 
   #---------------------------
 
-  _disable_streaming : ->  @_sink_fn = (block) -> @_blocks.push block
+  _disable_streaming : ->  
+    @_blocks = []
+    @_sink_fn = (block) -> @_blocks.push block
   _enable_streaming  : -> 
-    buf = Buffers.concat @_blocks
+    buf = Buffer.concat @_blocks
     @_blocks = []
     @push buf
     @_sink_fn = (block) -> @push block
@@ -126,11 +129,11 @@ exports.Encryptor = class Encryptor extends stream.Transform
 
   #---------------------------
 
-  _prepare_ciphers : (cb) ->
-    ciphers = gaf.cipers()
+  _prepare_ciphers : () ->
+    ciphers = gaf.ciphers()
     @edatasize = @packed_stat.length + @stat.size
     nblocksz = @edatasize / gaf.ENC_BLOCK_SIZE
-    @ivs = (crypto.rng(gaf.ENC_KEY_SIZE) for i in ciphers)
+    @ivs = (crypto.rng(gaf.ENC_BLOCK_SIZE) for i in ciphers)
 
     prev = null
 
@@ -138,8 +141,6 @@ exports.Encryptor = class Encryptor extends stream.Transform
       key = @keys[c.split("-")[0]]
       iv = @ivs[i]
       crypto.createCipheriv(c, key, iv)
-
-    cb true
 
   #---------------------------
 
@@ -189,7 +190,7 @@ exports.Encryptor = class Encryptor extends stream.Transform
 
   #---------------------------
 
-  _write_premable : () -> @_send_to_sink Preamble.pack()
+  _write_preamble : () -> @_send_to_sink Preamble.pack()
   _write_pack     : (d) -> @_send_to_sink pack2 d
   _write_header   : () -> @_write_pack @_make_header()
   _write_mac      : () -> @_write_pack @macs.pop().digest()
@@ -215,7 +216,7 @@ exports.Encryptor = class Encryptor extends stream.Transform
 
   #---------------------------
 
-  init : () ->
+  init_stream : () ->
 
     @_prepare_ciphers()
     @_prepare_macs()
@@ -234,10 +235,17 @@ exports.Encryptor = class Encryptor extends stream.Transform
 
   #---------------------------
 
+  init : (cb) ->
+    await @setup_keys defer ok
+    @init_stream() if ok
+    cb ok
+
+  #---------------------------
+
   # Called before init() to key our ciphers and MACs.
-  setup_keys : (pwm, cb) ->
+  setup_keys : (cb) ->
     tks = gaf.total_key_size()
-    await pwm.derive_key_material tks, true, defer km
+    await @pwmgr.derive_key_material tks, true, defer km
     if km
       @keys = gaf.produce_keys km
       ok = true

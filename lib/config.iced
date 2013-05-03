@@ -60,5 +60,8 @@ exports.Config = class Config
 
   aws   : () -> @json.aws
   vault : () -> @json.vault
+  email : () -> @json.email
+  salt  : () -> @json.salt
+  password : () -> @json.password
 
 #=========================================================================

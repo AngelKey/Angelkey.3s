@@ -94,9 +94,9 @@ exports.Base = class Base
 
   #-------------------
 
-  password : () -> pick @argv.p, @config.password
-  email    : () -> pick @argv.e, @config.email
-  salt     : () -> pick @argv.s, @config.salt
+  password : () -> pick @argv.p, @config.password()
+  email    : () -> pick @argv.e, @config.email()
+  salt     : () -> pick @argv.s, @config.salt()
   salt_or_email : () -> pick @salt(), @email()
 
 #=========================================================================

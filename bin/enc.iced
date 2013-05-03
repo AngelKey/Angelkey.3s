@@ -104,8 +104,8 @@ class Command extends cmd.Base
     if ok
       await @open_output defer ok, ostream
     if ok
-      enc = new mycrypto.Encryptor { stat }
-      await enc.setup_keys @pwmgr, defer ok
+      enc = new mycrypto.Encryptor { stat, @pwmgr }
+      await enc.init defer ok
       if not ok
         log.error "Could not setup encryption keys"
     if ok
