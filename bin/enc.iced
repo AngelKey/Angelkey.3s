@@ -86,6 +86,8 @@ class Command extends cmd.Base
         log.error "Error in removing original file #{@infn}: #{err}"
         ok = false
     cb ok
+    
+  #-----------------
 
   cleanup_on_failure : (cb) ->
     ok = true

@@ -97,13 +97,12 @@ keysplit = (key, splits) ->
 
 #==================================================================
 
-exports.Encryptor = class Encryptor extends stream.Transform
+class Transform extends stream.Transform
 
-  constructor : ({@stat, @pwmgr}, pipe_opts) ->
+  #---------------------------
+
+  constructor : (pipe_opts) ->
     super pipe_opts
-    @packed_stat = pack2(@stat, 'buffer')
-    @_disable_ciphers()
-    @_disable_streaming()
 
   #---------------------------
 
@@ -129,6 +128,24 @@ exports.Encryptor = class Encryptor extends stream.Transform
 
   #---------------------------
 
+  _process : (chunk)  -> @_mac @_cipher_fn chunk
+
+  #---------------------------
+
+  _prepare_macs : () ->
+    # One mac for the header, and another for the whole file (including
+    # the header MAC)
+    @macs = (crypto.createHmac('sha256', @keys.hmac) for i in [0...2])
+
+  #---------------------------
+
+  _mac : (block) ->
+    for m in @macs
+      m.update block
+    block
+
+  #---------------------------
+
   _prepare_ciphers : () ->
     ciphers = gaf.ciphers()
     @edatasize = @packed_stat.length + @stat.size
@@ -143,6 +160,34 @@ exports.Encryptor = class Encryptor extends stream.Transform
       crypto.createCipheriv(c, key, iv)
 
   #---------------------------
+
+  _transform : (block, encoding, cb) -> 
+    @_send_to_sink block, cb
+
+  #---------------------------
+
+  # Called before init_stream() to key our ciphers and MACs.
+  setup_keys : (make_key, cb) ->
+    tks = gaf.total_key_size()
+    await @pwmgr.derive_key_material tks, make_key, defer km
+    if km
+      @keys = gaf.produce_keys km
+      ok = true
+    else ok = false
+    cb ok
+
+#==================================================================
+
+exports.Encryptor = class Encryptor extends Transform
+
+  constructor : ({@stat, @pwmgr}, pipe_opts) ->
+    super pipe_opts
+    @packed_stat = pack2(@stat, 'buffer')
+    @_disable_ciphers()
+    @_disable_streaming()
+
+  #---------------------------
+
 
   # Chain the ciphers together, without any additional buffering from
   # pipes.  We're going to simplify this alot...
@@ -165,27 +210,7 @@ exports.Encryptor = class Encryptor extends stream.Transform
 
   #---------------------------
 
-  _process : (chunk)  -> @_mac @_cipher_fn chunk
   _flush_ciphers : () -> @_mac @_final()
-
-  #---------------------------
-
-  _prepare_macs : () ->
-    # One mac for the header, and another for the whole file (including
-    # the header MAC)
-    @macs = (crypto.createHmac('sha256', @keys.hmac) for i in [0...2])
-
-  #---------------------------
-
-  _mac : (block) ->
-    for m in @macs
-      m.update block
-    block
-
-  #---------------------------
-
-  _transform : (block, encoding, cb) -> 
-    @_send_to_sink block, cb
 
   #---------------------------
 
@@ -235,20 +260,15 @@ exports.Encryptor = class Encryptor extends stream.Transform
   #---------------------------
 
   init : (cb) ->
-    await @setup_keys defer ok
+    await @setup_keys true, defer ok
     @init_stream() if ok
     cb ok
 
-  #---------------------------
+#==================================================================
 
-  # Called before init() to key our ciphers and MACs.
-  setup_keys : (cb) ->
-    tks = gaf.total_key_size()
-    await @pwmgr.derive_key_material tks, true, defer km
-    if km
-      @keys = gaf.produce_keys km
-      ok = true
-    else ok = false
-    cb ok
+exports.Decryptor = class Decryptor extends Transform
+
+  constructor : (pipe_opts) ->
+    super pipe_opts
 
 #==================================================================
