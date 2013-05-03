@@ -74,23 +74,25 @@ class Command extends cmd.Base
 
   #-----------------
 
-  cleanup_files : (cb) ->
-    if ok
-      await fs.rename @tmpfn, @outfn, defer err
-      ok = true
+  cleanup_on_success : (cb) ->
+    await fs.rename @tmpfn, @outfn, defer err
+    ok = true
+    if err?
+      log.error "Problem in file rename: #{err}"
+      ok = false
+    if ok and @argv.r
+      await fs.unlink @infn, defer err
       if err?
-        log.error "Problem in file rename: #{err}"
+        log.error "Error in removing original file #{@infn}: #{err}"
         ok = false
-      if ok and @argv.r
-        await fs.unlink @infn, defer err
-        if err?
-          log.error "Error in removing original file #{@infn}: #{err}"
-          ok = false
-    else
-      await fs.unlink @tmpfn, defer err
-      if err?
-        log.warn "Cannot remove temporary file #{@tmpfn}: #{err}"
-        ok = false
+    cb ok
+
+  cleanup_on_failure : (cb) ->
+    ok = true
+    await fs.unlink @tmpfn, defer err
+    if err?
+      log.warn "Cannot remove temporary file #{@tmpfn}: #{err}"
+      ok = false
     cb ok
 
   #-----------------
@@ -112,10 +114,11 @@ class Command extends cmd.Base
       istream.pipe(enc).pipe(ostream)
       await istream.once 'end', defer()
       await ostream.once 'finish', defer()
+      await @cleanup_on_success defer ok
     else
       ostream.close() if ostream?
       istream.close() if istream?
-    await @cleanup_files defer ok
+      await @cleanup_on_failure defer()
     cb ok
 
 #=========================================================================
