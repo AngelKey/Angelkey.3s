@@ -408,9 +408,14 @@ exports.Decryptor = class Decryptor extends Transform
 
   #---------------------------
 
+  validate : () -> @_final_mac_ok
+
+  #---------------------------
+
   _flush : (cb)->
     @_final()
-    # XXX TODO we need to check the MAC
+    @_q.set_eof()
+    await @_check_mac defer @_final_mac_ok
     cb()
 
   #---------------------------
@@ -423,8 +428,9 @@ exports.Decryptor = class Decryptor extends Transform
 
   _start_body : () ->
     @_section = BODY
-    @push @_q.flush()
+    buf = @_q.flush()
     @_disable_queueing()
+    @_handle_body buf
 
   #---------------------------
 

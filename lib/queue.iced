@@ -9,6 +9,11 @@ exports.Queue = class Queue
   constructor : () -> 
     @_buffers = []
     @_n = 0
+    @_eof = false
+
+  #---------------------------
+
+  set_eof : () -> @_eof = true
 
   #---------------------------
 
@@ -18,6 +23,7 @@ exports.Queue = class Queue
     if (c = @_cb)?
       @_cb = null
       c()
+
 
   #---------------------------
 
@@ -32,7 +38,7 @@ exports.Queue = class Queue
     ret = []
     m = 0
 
-    while m < n
+    while m < n and @_buffers.length
       b = @_buffers[0]
       l = b.length
 
@@ -55,7 +61,7 @@ exports.Queue = class Queue
   #---------------------------
 
   read : (n, cb) ->
-    while n < @_n
+    while n < @_n and not @_eof
       await @_cb = defer()
     b = @pop_bytes n
     cb b
