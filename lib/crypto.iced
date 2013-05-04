@@ -203,20 +203,7 @@ class Transform extends stream.Transform
       chunk = c.update chunk
     chunk
 
-#==================================================================
-
-exports.Encryptor = class Encryptor extends Transform
-
-  constructor : ({@stat, @pwmgr}, pipe_opts) ->
-    super pipe_opts
-    @packed_stat = pack2(@stat, 'buffer')
-    @_disable_ciphers()
-    @_disable_streaming()
-
   #---------------------------
-
-
-
   # Cascading final update, the final from one cipher needs to be
   # run through all of the downstream ciphers...
   _final : () ->
@@ -227,9 +214,20 @@ exports.Encryptor = class Encryptor extends Transform
       chunk
     Buffer.concat bufs
 
+#==================================================================
+
+exports.Encryptor = class Encryptor extends Transform
+
+  constructor : ({@stat, @pwmgr}, pipe_opts) ->
+    super pipe_opts
+    @packed_stat = pack2 @stat, 'buffer'
+    @_disable_ciphers()
+    @_disable_streaming()
+
   #---------------------------
 
-  _flush_ciphers : () -> @_mac @_final()
+
+  _flush_ciphers : () -> @_sink_fn @_mac @_final()
 
   #---------------------------
 
@@ -304,8 +302,32 @@ exports.Decryptor = class Decryptor extends Transform
 
   #---------------------------
 
+  _enable_clear_queuing : ->
+    @_enqueue = (block) => @_q.push block
+    @_dequeue = (n, cb) => 
+      await @_q.read n, defer b
+      @_mac b if b?
+      cb b
+
+  #---------------------------
+
+  _enable_deciphered_queueing : ->
+    @_enqueue = (block) ->
+      if block?
+        @_mac block
+        @_q.push @_update_ciphers block
+    @_dequeue = (n, cb) => @_q.read n, cb
+
+  #---------------------------
+
+  _disable_queueing : ->
+    @_enqueue = null
+    @_dequeue = null
+
+  #---------------------------
+
   _read_preamble : (cb) ->
-    await @_read_from_q Premable.len(), defer b
+    await @_dequeue Premable.len(), defer b
     ok = Preamble.unpack b 
     log.error "Failed to unpack preamble: #{b.inspect()}" unless ok
     cb ok
@@ -313,19 +335,19 @@ exports.Decryptor = class Decryptor extends Transform
   #---------------------------
 
   _read_unpack : (cb) ->
-    await @_read_from_q 1, defer b
+    await @_dequeue 1, defer b
     framelen = msgpack_packed_numlen b
     if framelen is 0
       log.error "Bad msgpack len header: #{b.inspect()}"
     else
-      await @_read_from_q framelen, defer b
+      await @_dequeue framelen, defer b
       [err, frame] = purepack.unpack b 
       if err?
         log.error "In reading msgpack frame: #{err}"
       else if not (typeof(frame) is number)
         log.error "Expected frame as a number: got #{frame}"
       else if not 
-        await @_read_from_q frame, defer b
+        await @_dequeue frame, defer b
         [err, out] = purepack.unpack b
         log.error "In unpacking #{b.inspect()}: #{err}" if err?
     cb out
@@ -347,17 +369,6 @@ exports.Decryptor = class Decryptor extends Transform
 
   #---------------------------
 
-  _read : (n, cb) ->
-
-  #---------------------------
-
-  _read_from_q : (n, cb) ->
-    await @_q.read n, defer b
-    @_mac b if b?
-    cb b
-
-  #---------------------------
-
   _check_mac : (cb) ->
     wanted = @macs.pop().digest()
     await @_read_unpack defer given
@@ -370,13 +381,12 @@ exports.Decryptor = class Decryptor extends Transform
       ok = true
     cb ok
 
-
   #---------------------------
 
-  _enable_ciphers : () => 
+  _enable_queued_ciphertext : () => 
     buf = @_q.flush()
-    super()
-    @_q.push @_read buf
+    @_enable_deciphered_queueing()
+    @_enqeue buf
 
   #---------------------------
 
@@ -389,31 +399,45 @@ exports.Decryptor = class Decryptor extends Transform
     await @_read_preamble defer ok
     await @_read_header   defer ok if ok
     await @_check_mac     defer ok if ok
-    @_enable_ciphers()             if ok
+
+    @_enable_queued_ciphertext()   if ok
     await @_read_metadata defer ok if ok 
 
-    await @_start_body defer ok if ok
+    @_start_body()                 if ok
     cb ok
+
+  #---------------------------
+
+  _flush : (cb)->
+    @_final()
+    # XXX TODO we need to check the MAC
+    cb()
+
+  #---------------------------
+
+  _stream_body : (block, cb) ->
+    @push bl if (bl = @_update_ciphers @_mac block)?
+    cb()
 
   #---------------------------
 
   _start_body : () ->
     @_section = BODY
-    await @_stream_body @_q.flush(), defer ok
-    cb ok
+    @push @_q.flush()
+    @_disable_queueing()
 
   #---------------------------
 
   _read_metadata : (cb) ->
-    await @_read_from_q @hdr.statsize, defer block
-
+    await @_read_unpack defer obj
+    cb ok
 
   #---------------------------
 
   _start_footer : (block) ->
     @_section = FOOTER
-    @_q = new Queue
-    @_q.push block if block? 
+    @_enable_clear_queuing()
+    @_enqeue block
 
   #---------------------------
 
@@ -436,10 +460,8 @@ exports.Decryptor = class Decryptor extends Transform
   #---------------------------
 
   _transform : (block, encoding, cb) ->
-    if @_section is BODY 
-      await @_handle_body block, defer()
-    else
-      @_q.push block
+    if @_enqueue? then @_enqueue block
+    else await @_handle_body block, defer()
     cb()
 
 #==================================================================
