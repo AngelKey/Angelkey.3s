@@ -21,6 +21,13 @@ exports.Queue = class Queue
 
   #---------------------------
 
+  flush : () ->
+    ret = Buffer.concat @_buffers
+    @_buffer = []
+    return ret
+
+  #---------------------------
+
   pop_bytes : (n) ->
     ret = []
     m = 0

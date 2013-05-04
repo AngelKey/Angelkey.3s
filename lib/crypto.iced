@@ -30,6 +30,17 @@ bufeq : (b1, b2) ->
 
 #==================================================================
 
+secure_bufeq = (b1, b2) ->
+  ret = true
+  if b1.length isnt b2.length
+    ret = false
+  else
+    for b, i in b1
+      ret = false unless b is b2[i]
+  return ret
+
+#==================================================================
+
 class AlgoFactory 
 
   constructor : ->
@@ -111,7 +122,7 @@ class Transform extends stream.Transform
 
   #---------------------------
 
-  _enable_ciphers   : -> @_cipher_fn = (block) => @_encrypt block
+  _enable_ciphers   : -> @_cipher_fn = (block) => @_update_ciphers block
   _disable_ciphers  : -> @_cipher_fn = (block) => block
 
   #---------------------------
@@ -154,7 +165,7 @@ class Transform extends stream.Transform
 
   #---------------------------
 
-  _prepare_ciphers : () ->
+  _prepare_ciphers : (enc = true) ->
     ciphers = gaf.ciphers()
     @edatasize = @packed_stat.length + @stat.size
     nblocksz = @edatasize / gaf.ENC_BLOCK_SIZE
@@ -165,7 +176,11 @@ class Transform extends stream.Transform
     @ciphers = for c, i in ciphers
       key = @keys[c.split("-")[0]]
       iv = @ivs[i]
-      crypto.createCipheriv(c, key, iv)
+      fn = if enc then crypto.createCipheriv else crypto.createDecipheriv
+      fn c, key, iv
+
+    # decrypt in the opposite order
+    @ciphers.reverse() unless enc
 
   #---------------------------
 
@@ -178,6 +193,15 @@ class Transform extends stream.Transform
       ok = true
     else ok = false
     cb ok
+
+  #---------------------------
+
+  # Chain the ciphers together, without any additional buffering from
+  # pipes.  We're going to simplify this alot...
+  _update_ciphers : (chunk) ->
+    for c in @ciphers
+      chunk = c.update chunk
+    chunk
 
 #==================================================================
 
@@ -192,14 +216,6 @@ exports.Encryptor = class Encryptor extends Transform
   #---------------------------
 
 
-  # Chain the ciphers together, without any additional buffering from
-  # pipes.  We're going to simplify this alot...
-  _encrypt : (chunk) ->
-    for c in @ciphers
-      chunk = c.update chunk
-    chunk
-
-  #---------------------------
 
   # Cascading final update, the final from one cipher needs to be
   # run through all of the downstream ciphers...
@@ -274,17 +290,22 @@ exports.Encryptor = class Encryptor extends Transform
 
 #==================================================================
 
+[HEADER, BODY, FOOTER] = [0..2]
+
+#==================================================================
+
 exports.Decryptor = class Decryptor extends Transform
 
   constructor : (pipe_opts) ->
     super pipe_opts
-    @_body = false
+    @_section = HEADER
+    @_n = 0  # number of body bytes reads
     @_q = new Queue
 
   #---------------------------
 
   _read_preamble : (cb) ->
-    await @_q.read Premable.len(), defer b
+    await @_read_from_q Premable.len(), defer b
     ok = Preamble.unpack b 
     log.error "Failed to unpack preamble: #{b.inspect()}" unless ok
     cb ok
@@ -292,19 +313,19 @@ exports.Decryptor = class Decryptor extends Transform
   #---------------------------
 
   _read_unpack : (cb) ->
-    await @_q.read 1, defer b
+    await @_read_from_q 1, defer b
     framelen = msgpack_packed_numlen b
     if framelen is 0
       log.error "Bad msgpack len header: #{b.inspect()}"
     else
-      await @_q.read framelen, defer b
+      await @_read_from_q framelen, defer b
       [err, frame] = purepack.unpack b 
       if err?
         log.error "In reading msgpack frame: #{err}"
       else if not (typeof(frame) is number)
         log.error "Expected frame as a number: got #{frame}"
       else if not 
-        await @_q.read frame, defer b
+        await @_read_from_q frame, defer b
         [err, out] = purepack.unpack b
         log.error "In unpacking #{b.inspect()}: #{err}" if err?
     cb out
@@ -317,7 +338,7 @@ exports.Decryptor = class Decryptor extends Transform
     if not @hdr?
       log.error "Failed to read header"
     else if @hdr.version isnt constants.VERSION
-      log.error "Can't deal with versions other than #{constants.VERSION}; got #{@hdr.version}"
+      log.error "Only know version #{constants.VERSION}; got #{@hdr.version}"
     else if not (@ivs = @hdr.ivs)? or not (@ivs.length is 2)
       log.error "Malformed headers; didn't find two IVs"
     else
@@ -326,17 +347,97 @@ exports.Decryptor = class Decryptor extends Transform
 
   #---------------------------
 
+  _read : (n, cb) ->
+
+  #---------------------------
+
+  _read_from_q : (n, cb) ->
+    await @_q.read n, defer b
+    @_mac b if b?
+    cb b
+
+  #---------------------------
+
+  _check_mac : (cb) ->
+    wanted = @macs.pop().digest()
+    await @_read_unpack defer given
+    ok = false
+    if not given?
+      log.error "Couldn't read MAC from file"
+    else if not secure_bufeq given, wanted
+      log.error "Header MAC mismatch error"
+    else
+      ok = true
+    cb ok
+
+
+  #---------------------------
+
+  _enable_ciphers : () => 
+    buf = @_q.flush()
+    super()
+    @_q.push @_read buf
+
+  #---------------------------
+
   init_stream : (cb) ->
     ok = true
+
+    @_prepare_macs()
+    @_prepare_ciphers false
+
     await @_read_preamble defer ok
     await @_read_header   defer ok if ok
+    await @_check_mac     defer ok if ok
+    @_enable_ciphers()             if ok
+    await @_read_metadata defer ok if ok 
+
+    await @_start_body defer ok if ok
     cb ok
 
   #---------------------------
 
+  _start_body : () ->
+    @_section = BODY
+    await @_stream_body @_q.flush(), defer ok
+    cb ok
+
+  #---------------------------
+
+  _read_metadata : (cb) ->
+    await @_read_from_q @hdr.statsize, defer block
+
+
+  #---------------------------
+
+  _start_footer : (block) ->
+    @_section = FOOTER
+    @_q = new Queue
+    @_q.push block if block? 
+
+  #---------------------------
+
+  _handle_body : (block, cb) ->
+
+    bl = block.length
+    tot = @hdr.filesize
+    b_rem = null
+
+    if (diff = bl + @_n - tot) > 0
+      tmp = block[0...diff]
+      b_rem = block[diff...]
+      block = tmp
+
+    @_n += block.length
+    await @_stream_body block, defer()
+    @_start_footer b_rem if diff >= 0
+    cb()
+
+  #---------------------------
+
   _transform : (block, encoding, cb) ->
-    if @_body
-      await @_stream_body block, defer()
+    if @_section is BODY 
+      await @_handle_body block, defer()
     else
       @_q.push block
     cb()
