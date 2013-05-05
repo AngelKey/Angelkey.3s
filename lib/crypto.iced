@@ -222,14 +222,12 @@ class Transform extends stream.Transform
   _prepare_macs : () ->
     # One mac for the header, and another for the whole file (including
     # the header MAC)
-    console.log "prepare macs #{dump_buf @keys.hmac}"
     @macs = (crypto.createHmac('sha256', @keys.hmac) for i in [0...2])
 
   #---------------------------
 
   _mac : (block) ->
     for m,i in @macs
-      console.log "update mac #{i} #{dump_buf block}"
       m.update block
     block
 
@@ -399,9 +397,7 @@ exports.Decryptor = class Decryptor extends Transform
     @_enqueue = (block) ->
       if block?
         @_mac block
-        console.log "Inblock #{dump_buf block}"
         out = @_update_ciphers block
-        console.log "Outblock #{dump_buf out}"
         @_q.push out
     @_dequeue = (n, cb) => @_q.read n, cb
 
@@ -439,8 +435,6 @@ exports.Decryptor = class Decryptor extends Transform
       # and then the rest
       [err, frame] = purepack.unpack b
 
-      console.log "frame => #{frame}"
-
       if err?
         log.error "In reading msgpack frame: #{err}"
       else if not (typeof(frame) is 'number')
@@ -470,9 +464,7 @@ exports.Decryptor = class Decryptor extends Transform
 
   _check_mac : (cb) ->
     wanted = @macs.pop().digest()
-    console.log "check_mac wanted #{dump_buf wanted}"
     await @_read_unpack defer given
-    console.log "check_mac given #{dump_buf new Buffer given, 'binary'}"
     ok = false
     if not given?
       log.error "Couldn't read MAC from file"
@@ -486,7 +478,6 @@ exports.Decryptor = class Decryptor extends Transform
 
   _enable_queued_ciphertext : () => 
     buf = @_q.flush()
-    console.log "flushing #{buf.length}"
     @_enable_deciphered_queueing()
     @_enqueue buf
 
@@ -549,7 +540,6 @@ exports.Decryptor = class Decryptor extends Transform
   #---------------------------
 
   _stream_body : (block, cb) ->
-    console.log "stream block #{block.length}"
     @push bl if (bl = @_update_ciphers @_mac block)?
     cb?() 
 
@@ -559,7 +549,6 @@ exports.Decryptor = class Decryptor extends Transform
     @_section = BODY
     buf = @_q.flush()
     @_disable_queueing()
-    console.log "Flushing Buf #{buf.length}"
     @push buf
 
   #---------------------------
@@ -572,7 +561,6 @@ exports.Decryptor = class Decryptor extends Transform
 
   _transform : (block, encoding, cb) ->
     block = @_ff.filter block
-    console.log "Incoming block #{block.length}"
     if not block? or not block.length then null
     else if @_enqueue? then @_enqueue block
     else await @_stream_body block, defer()
