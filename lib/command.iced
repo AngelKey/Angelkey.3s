@@ -3,6 +3,9 @@
 {Config} = require './config'
 log = require './log'
 {PasswordManager} = require './pw'
+base58 = require '../lib/base58'
+mycrypto = require '../lib/crypto'
+myfs = require '../lib/fs'
 
 #=========================================================================
 
@@ -10,6 +13,15 @@ pick = (args...) ->
   for a in args
     return a if a?
   return null
+
+#=========================================================================
+
+dmerge : (dl) ->
+  ret = {}
+  for d in dl
+    for k,v of d
+      ret[k] = v
+  ret
 
 #=========================================================================
 
@@ -21,10 +33,15 @@ exports.Base = class Base
     @config = new Config()
     @aws    = new AwsWrapper()
     @pwmgr  = new PasswordManager()
+    @opts_annex = []
 
   #-------------------
 
-  parse_options : (usage, opts_passed = {}) ->
+  add_opts : (o) -> @opts_annex.push o
+
+  #-------------------
+
+  parse_options : (usage) ->
     opts = 
       e :
         alias : 'email'
@@ -51,7 +68,9 @@ exports.Base = class Base
         alias : 'help'
         describe : 'print this help message'
 
-    opti = require('optimist').options(opts).options(opts_passed).usage(usage)
+    opts = dmerge [ opts ].concat @opts_annex
+
+    opti = require('optimist').options(opts).usage(usage)
 
     @argv = opti.argv
 
@@ -70,8 +89,8 @@ exports.Base = class Base
 
   #-------------------
 
-  init : (usage, opts, cb) ->
-    ok = @parse_options usage, opts 
+  init : (usage, cb) ->
+    ok = @parse_options usage
     await @config.load @argv.c, defer ok  if ok
     ok = @aws.init @config.aws            if ok and @need_aws()
     ok = @_init_pwmgr()                   if ok
@@ -99,5 +118,128 @@ exports.Base = class Base
   salt     : () -> pick @argv.s, @config.salt()
   salt_or_email : () -> pick @salt(), @email()
 
+#=========================================================================
+
+exports.CipherBase extends Base
+   
+  #-----------------
+
+  OPTS :
+    o : 
+      alias : "output"
+      describe : "output file to write to"
+    r :
+      alias : "remove"
+      describe : "remove the original file after encryption"
+      boolean : true
+    x :
+      alias : "extension"
+      describe : "encrypted file extension"
+
+  #-----------------
+
+  USAGE : "Usage: $0 [opts] <infile>"
+
+  #-----------------
+
+  need_aws : -> false
+
+  #-----------------
+
+  check_args : () ->
+    if @argv._.length isnt 1
+      log.warn "Need an input file argument"
+      false
+    else true
+
+  #-----------------
+   
+  constructor : () ->
+    super()
+    @add_opts @OPTS
+
+  #-----------------
+
+  file_extension : () -> @argv.x or @config.file_extension()
+
+  #-----------------
+
+  strip_extension : (fn) ->
+    v = fn.split "."
+    x = @file_extension()
+    l = v.length
+    if v[l-1] is x then v[0...l].join '.'
+    else null
+
+  #-----------------
+
+  tmp_filename : (stem) ->
+    ext = base58.encode crypto.rng 8
+    [stem, ext].join '.'
+
+  #-----------------
+
+  open_output : (cb) ->
+    ok = true
+    if (ofn = @output_filename())?
+      @outfn = ofn
+      @tmpfn = @tmp_filename @outfn
+      await myfs.open { filename : @tmpfn, write : true }, defer err, ostream
+      if err?
+        log.error "Error opening temp outfile #{@tmpfn}: #{err}"
+        ok = false
+    else
+      @outfn = "<stdout>"
+      ostream = process.stdout 
+    cb ok, ostream
+
+  #-----------------
+
+  cleanup_on_success : (cb) ->
+    await fs.rename @tmpfn, @outfn, defer err
+    ok = true
+    if err?
+      log.error "Problem in file rename: #{err}"
+      ok = false
+    if ok and @argv.r
+      await fs.unlink @infn, defer err
+      if err?
+        log.error "Error in removing original file #{@infn}: #{err}"
+        ok = false
+    cb ok
+    
+  #-----------------
+
+  cleanup_on_failure : (cb) ->
+    ok = true
+    await fs.unlink @tmpfn, defer err
+    if err?
+      log.warn "cannot remove temporary file #{@tmpfn}: #{err}"
+      ok = false
+    cb ok
+
+  #-----------------
+
+  cleanup : (ok, cb) ->
+    if ok 
+      await @cleanup_on_success defer ok
+    else
+      @ostream.close() if @ostream?
+      @istream.close() if @istream?
+      await @cleanup_on_failure defer()
+    cb()
+
+  #-----------------
+
+  init : (cb) ->
+    await super @USAGE, defer ok
+    if ok
+      @infn = @argv._[0]
+      await myfs.open { filename :  @infn }, defer err, @istream, @stat
+      ok = false if err?
+    if ok
+      await @open_output defer ok, @ostream
+    cb ok
+  
 #=========================================================================
 

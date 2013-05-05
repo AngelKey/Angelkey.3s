@@ -3,31 +3,33 @@
 cmd = require '../lib/command'
 log = require '../lib/log'
 fs   = require 'fs'
-myfs = require '../lib/fs'
 crypto = require 'crypto'
 mycrypto = require '../lib/crypto'
-base58 = require '../lib/base58'
+myfs = require '../lib/fs'
 
 #=========================================================================
 
 class Command extends cmd.CipherBase
    
   #-----------------
-   
+
   constructor : () ->
     super()
 
   #-----------------
 
   output_filename : () ->
-    @argv.o or [ @infn, @file_extension() ].join ''
+    if not @argv.o? then @strip_extension @infn
+    else if @argv.o isnt '-' then @argv.o
+    else null
 
   #-----------------
 
   run : (cb) ->
     await @init defer ok
+
     if ok
-      enc = new mycrypto.Encryptor { @stat, @pwmgr }
+      enc = new mycrypto.Decryptor { @pwmgr }
       await enc.init defer ok
       if not ok
         log.error "Could not setup encryption keys"

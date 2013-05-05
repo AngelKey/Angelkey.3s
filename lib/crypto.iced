@@ -294,7 +294,7 @@ exports.Encryptor = class Encryptor extends Transform
 
 exports.Decryptor = class Decryptor extends Transform
 
-  constructor : (pipe_opts) ->
+  constructor : ({@pwmgr}, pipe_opts) ->
     super pipe_opts
     @_section = HEADER
     @_n = 0  # number of body bytes reads
