@@ -13,7 +13,7 @@ class Command extends cmd.CipherBase
   #-----------------
 
   output_filename : () ->
-    @argv.o or [ @infn, @file_extension() ].join ''
+    @argv.o or [ @infn, @file_extension() ].join '.'
 
   #-----------------
 

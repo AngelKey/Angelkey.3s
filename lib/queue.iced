@@ -1,5 +1,4 @@
 
-
 #==================================================================
 
 exports.Queue = class Queue 
@@ -28,7 +27,6 @@ exports.Queue = class Queue
 
   flush : () ->
     ret = Buffer.concat @_buffers
-    console.log "doing flush of #{ret.length} bytes"
     @_buffers = []
     @_n = 0
     return ret

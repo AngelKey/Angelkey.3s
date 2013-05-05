@@ -54,7 +54,7 @@ exports.Config = class Config
   #-------------------
 
   file_extension : () ->
-    @json.file_extension or ".mke"
+    @json.file_extension or "mke"
 
   #-------------------
 

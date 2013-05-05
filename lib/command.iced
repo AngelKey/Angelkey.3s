@@ -170,7 +170,9 @@ exports.CipherBase = class CipherBase extends Base
     v = fn.split "."
     x = @file_extension()
     l = v.length
-    if v[l-1] is x then v[0...l].join '.'
+    console.log v[l-1]
+    console.log x
+    if v[l-1] is x then v[0...(l-1)].join '.'
     else null
 
   #-----------------
@@ -253,9 +255,7 @@ exports.CipherBase = class CipherBase extends Base
   #-----------------
 
   run : (cb) ->
-    console.log "A #{ok}"
     await @init defer ok
-    console.log "B #{ok}"
 
     opened = false
 
@@ -266,19 +266,15 @@ exports.CipherBase = class CipherBase extends Base
       if not ok
         log.error "Could not setup keys for encryption/decryption"
 
-    console.log "C #{ok}"
     if ok
       @istream.pipe(@eng).pipe(@ostream)
       await @istream.once 'end', defer()
       await @ostream.once 'finish', defer()
 
-    console.log "D #{ok}"
     if ok
       [ok, err] = @eng.validate()
       if not ok
         log.error "Final validation error: #{err}"
-
-    console.log "E #{ok}"
 
     await @cleanup ok, defer() if opened
     cb ok
