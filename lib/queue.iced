@@ -61,13 +61,9 @@ exports.Queue = class Queue
   #---------------------------
 
   read : (n, cb) ->
-    console.log "read #{n} #{@_n}"
     while @_n < n and not @_eof
-      console.log "Waiting..."
       await @_cb = defer()
-      console.log "wait's over!"
     b = @pop_bytes n
-    console.log "popping and returning...#{b.inspect()}"
     cb b
     
 #==================================================================

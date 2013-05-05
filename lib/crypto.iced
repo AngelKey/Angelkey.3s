@@ -172,12 +172,14 @@ class Transform extends stream.Transform
   _prepare_macs : () ->
     # One mac for the header, and another for the whole file (including
     # the header MAC)
+    console.log "prepare macs #{dump_buf @keys.hmac}"
     @macs = (crypto.createHmac('sha256', @keys.hmac) for i in [0...2])
 
   #---------------------------
 
   _mac : (block) ->
-    for m in @macs
+    for m,i in @macs
+      console.log "update mac #{i} #{dump_buf block}"
       m.update block
     block
 
@@ -407,7 +409,9 @@ exports.Decryptor = class Decryptor extends Transform
 
   _check_mac : (cb) ->
     wanted = @macs.pop().digest()
+    console.log "check_mac wanted #{dump_buf wanted}"
     await @_read_unpack defer given
+    console.log "check_mac given #{dump_buf new Buffer given, 'binary'}"
     ok = false
     if not given?
       log.error "Couldn't read MAC from file"
@@ -516,5 +520,3 @@ exports.Decryptor = class Decryptor extends Transform
     cb()
 
 #==================================================================
-
-console.log dump_buf new Buffer [0...20]
