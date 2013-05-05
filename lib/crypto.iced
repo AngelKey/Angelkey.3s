@@ -343,7 +343,9 @@ exports.Decryptor = class Decryptor extends Transform
     @_enqueue = (block) ->
       if block?
         @_mac block
-        @_q.push @_update_ciphers block
+        out = @_update_ciphers block
+        console.log "Outblock #{dump_buf out}"
+        @_q.push out
     @_dequeue = (n, cb) => @_q.read n, cb
 
   #---------------------------
@@ -425,6 +427,7 @@ exports.Decryptor = class Decryptor extends Transform
 
   _enable_queued_ciphertext : () => 
     buf = @_q.flush()
+    console.log "flushing #{buf.length}"
     @_enable_deciphered_queueing()
     @_enqueue buf
 
@@ -492,11 +495,12 @@ exports.Decryptor = class Decryptor extends Transform
   _start_footer : (block) ->
     @_section = FOOTER
     @_enable_clear_queuing()
-    @_enqeue block
+    @_enqueue block
 
   #---------------------------
 
   _handle_body : (block, cb) ->
+    console.log "handle body len=#{block.length}"
 
     bl = block.length
     tot = @hdr.filesize
