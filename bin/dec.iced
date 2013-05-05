@@ -1,11 +1,7 @@
 #!/usr/bin/env iced
 
 cmd = require '../lib/command'
-log = require '../lib/log'
-fs   = require 'fs'
-crypto = require 'crypto'
 mycrypto = require '../lib/crypto'
-myfs = require '../lib/fs'
 
 #=========================================================================
 
