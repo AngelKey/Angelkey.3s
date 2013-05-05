@@ -24,7 +24,7 @@ pkcs7_padding = (datasz, blocksz) ->
 
 #==================================================================
 
-bufeq : (b1, b2) ->
+bufeq = (b1, b2) ->
   return false unless b1.length is b2.length
   for b, i in b1
     return false unless b is b2[i]
@@ -169,10 +169,9 @@ class Transform extends stream.Transform
 
   #---------------------------
 
-  _prepare_ciphers : (enc = true) ->
+  _prepare_ciphers : () ->
+    enc = @is_enc()
     ciphers = gaf.ciphers()
-    @edatasize = @packed_stat.length + @stat.size
-    nblocksz = @edatasize / gaf.ENC_BLOCK_SIZE
     @ivs = (crypto.rng(gaf.ENC_BLOCK_SIZE) for i in ciphers)
 
     prev = null
@@ -189,7 +188,8 @@ class Transform extends stream.Transform
   #---------------------------
 
   # Called before init_stream() to key our ciphers and MACs.
-  setup_keys : (make_key, cb) ->
+  setup_keys : (cb) ->
+    make_key = @is_enc()
     tks = gaf.total_key_size()
     await @pwmgr.derive_key_material tks, make_key, defer km
     if km
@@ -218,6 +218,13 @@ class Transform extends stream.Transform
       chunk
     Buffer.concat bufs
 
+  #---------------------------
+
+  init : (cb) ->
+    await @setup_keys defer ok
+    @init_stream() if ok
+    cb ok
+
 #==================================================================
 
 exports.Encryptor = class Encryptor extends Transform
@@ -229,6 +236,7 @@ exports.Encryptor = class Encryptor extends Transform
   #---------------------------
 
   validate : () -> [ true ]
+  is_enc   : () -> true
 
   #---------------------------
 
@@ -284,13 +292,6 @@ exports.Encryptor = class Encryptor extends Transform
   _transform : (block, encoding, cb) -> 
     @_send_to_sink block, cb
 
-  #---------------------------
-
-  init : (cb) ->
-    await @setup_keys true, defer ok
-    @init_stream() if ok
-    cb ok
-
 #==================================================================
 
 [HEADER, BODY, FOOTER] = [0..2]
@@ -304,6 +305,11 @@ exports.Decryptor = class Decryptor extends Transform
     @_section = HEADER
     @_n = 0  # number of body bytes reads
     @_q = new Queue
+    @_enable_clear_queuing()
+
+  #---------------------------
+
+  is_enc : () -> false
 
   #---------------------------
 
@@ -332,7 +338,7 @@ exports.Decryptor = class Decryptor extends Transform
   #---------------------------
 
   _read_preamble : (cb) ->
-    await @_dequeue Premable.len(), defer b
+    await @_dequeue Preamble.len(), defer b
     ok = Preamble.unpack b 
     log.error "Failed to unpack preamble: #{b.inspect()}" unless ok
     cb ok
@@ -395,18 +401,17 @@ exports.Decryptor = class Decryptor extends Transform
 
   #---------------------------
 
-  init_stream : (cb) ->
+  init_stream : () ->
     ok = true
     @_prepare_macs()
-    @_prepare_ciphers false
-    cb ok
+    @_prepare_ciphers()
 
     # Set this up to fly in the background...
-    read_headers()
+    @_read_headers()
 
   #---------------------------
 
-  read_headers : (cb) ->
+  _read_headers : (cb) ->
 
     await @_read_preamble defer ok
     await @_read_header   defer ok if ok
