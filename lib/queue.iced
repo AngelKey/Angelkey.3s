@@ -24,7 +24,6 @@ exports.Queue = class Queue
       @_cb = null
       c()
 
-
   #---------------------------
 
   flush : () ->

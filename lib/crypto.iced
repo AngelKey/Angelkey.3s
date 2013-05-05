@@ -11,7 +11,7 @@ iced.catchExceptions()
 #==================================================================
 
 pack2 = (o) ->
-  b1 = purepack.pack o, 'buffer'
+  b1 = purepack.pack o, 'buffer', { byte_arrays : true }
   b0 = purepack.pack b1.length, 'buffer'
   Buffer.concat [ b0, b1 ]
 
@@ -426,7 +426,7 @@ exports.Decryptor = class Decryptor extends Transform
   _enable_queued_ciphertext : () => 
     buf = @_q.flush()
     @_enable_deciphered_queueing()
-    @_enqeue buf
+    @_enqueue buf
 
   #---------------------------
 
