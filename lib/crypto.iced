@@ -32,6 +32,20 @@ bufeq = (b1, b2) ->
 
 #==================================================================
 
+nibble_to_str = (n) ->
+  ret = n.toString 16
+  ret = "0" + ret if ret.length is 1
+  ret
+
+#==================================================================
+
+dump_buf = (b) ->
+  l = b.length
+  bytes = (nibble_to_str c for c in b)
+  "Buffer(#{l})<#{bytes.join ' '}>"
+
+#==================================================================
+
 secure_bufeq = (b1, b2) ->
   ret = true
   if b1.length isnt b2.length
@@ -502,3 +516,5 @@ exports.Decryptor = class Decryptor extends Transform
     cb()
 
 #==================================================================
+
+console.log dump_buf new Buffer [0...20]
