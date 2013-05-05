@@ -16,8 +16,8 @@ exports.Config = class Config
 
   init : (fn) ->
     @filename = if fn? then fn
-    else if (f = process.env.MKBKP_CONFIG)? then f
-    else path.join process.env.HOME, ".mkbkp.conf"
+    else if (f = process.env.MKB_CONFIG)? then f
+    else path.join process.env.HOME, ".mkb.conf"
 
   #-------------------
 

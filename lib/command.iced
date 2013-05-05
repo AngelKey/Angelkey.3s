@@ -64,7 +64,7 @@ exports.Base = class Base
         describe : "don't use encryption when uploading / downloading"
       c : 
         alias : 'config-file'
-        describe : 'a configuration file (rather than ~/.mkbkp.conf)'
+        describe : 'a configuration file (rather than ~/.mkb.conf)'
       h : 
         boolean : true
         alias : 'help'

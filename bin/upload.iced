@@ -9,7 +9,7 @@ ProgressBar = require 'progress'
 warn = (x) -> console.log x
 
 load_config = (cb) ->
-  config = path.join process.env.HOME, ".mkbkp.conf"
+  config = path.join process.env.HOME, ".mkb.conf"
   await fs.exists config, defer ok
   if ok
     await fs.readFile config, defer err, file
