@@ -72,6 +72,8 @@ class AlgoFactory
 
   ciphers : () -> [ "aes-256-cbc", "camellia-256-cbc" ]
 
+  num_ciphers : () -> @ciphers().length
+
   pad : (buf) ->
     padding = pkcs7_padding buf.length, @ENC_BLOCK_SIZE
     Buffer.concat [ buf, padding ]
@@ -184,6 +186,7 @@ class Transform extends stream.Transform
     @_blocks = []
     @_disable_ciphers()
     @_disable_streaming()
+    @_ivs = null
 
   #---------------------------
 
@@ -235,13 +238,13 @@ class Transform extends stream.Transform
   _prepare_ciphers : () ->
     enc = @is_enc()
     ciphers = gaf.ciphers()
-    @ivs = (crypto.rng(gaf.ENC_BLOCK_SIZE) for i in ciphers)
+    @_ivs = (crypto.rng(gaf.ENC_BLOCK_SIZE) for i in ciphers) unless @_ivs?
 
     prev = null
 
     @ciphers = for c, i in ciphers
       key = @keys[c.split("-")[0]]
-      iv = @ivs[i]
+      iv = @_ivs[i]
       fn = if enc then crypto.createCipheriv else crypto.createDecipheriv
       fn c, key, iv
 
@@ -318,7 +321,7 @@ exports.Encryptor = class Encryptor extends Transform
   _make_header : () ->
     out = 
       version : constants.VERSION
-      ivs : @ivs
+      ivs : @_ivs
       statsize : @packed_stat.length
       filesize : @stat.size
     return out
@@ -396,6 +399,7 @@ exports.Decryptor = class Decryptor extends Transform
     @_enqueue = (block) ->
       if block?
         @_mac block
+        console.log "Inblock #{dump_buf block}"
         out = @_update_ciphers block
         console.log "Outblock #{dump_buf out}"
         @_q.push out
@@ -435,6 +439,8 @@ exports.Decryptor = class Decryptor extends Transform
       # and then the rest
       [err, frame] = purepack.unpack b
 
+      console.log "frame => #{frame}"
+
       if err?
         log.error "In reading msgpack frame: #{err}"
       else if not (typeof(frame) is 'number')
@@ -454,8 +460,8 @@ exports.Decryptor = class Decryptor extends Transform
       log.error "Failed to read header"
     else if @hdr.version isnt constants.VERSION
       log.error "Only know version #{constants.VERSION}; got #{@hdr.version}"
-    else if not (@ivs = @hdr.ivs)? or not (@ivs.length is 2)
-      log.error "Malformed headers; didn't find two IVs"
+    else if not (@_ivs = @hdr.ivs)? or (@_ivs.length isnt gaf.num_ciphers())
+      log.error "Malformed headers; didn't find #{gaf.num_ciphers()} IVs"
     else
       ok = true
     cb ok
@@ -489,7 +495,6 @@ exports.Decryptor = class Decryptor extends Transform
   init_stream : () ->
     ok = true
     @_prepare_macs()
-    @_prepare_ciphers()
 
     # Set this up to fly in the background...
     @_read_headers()
@@ -500,6 +505,11 @@ exports.Decryptor = class Decryptor extends Transform
 
     await @_read_preamble defer ok
     await @_read_header   defer ok if ok
+
+    # can only prepare the ciphers after we've read the header
+    # (since the header has the IV!)
+    @_prepare_ciphers()
+
     await @_check_mac     defer ok if ok
 
     @_enable_queued_ciphertext()   if ok
