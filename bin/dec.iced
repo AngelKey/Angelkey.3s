@@ -20,7 +20,7 @@ class Command extends cmd.CipherBase
 
   #-----------------
 
-  eng_class : () -> mycrypto.Decryptor
+  make_eng : (args...) -> new mycrypto.Decryptor args...
 
 #=========================================================================
 

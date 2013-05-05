@@ -2,11 +2,9 @@
 
 cmd = require '../lib/command'
 log = require '../lib/log'
-fs   = require 'fs'
 myfs = require '../lib/fs'
 crypto = require 'crypto'
 mycrypto = require '../lib/crypto'
-base58 = require '../lib/base58'
 
 #=========================================================================
 
@@ -19,7 +17,7 @@ class Command extends cmd.CipherBase
 
   #-----------------
 
-  eng_class : () -> mycrypto.Encryptor
+  make_eng : (args...) -> new mycrypto.Encryptor args...
 
 #=========================================================================
 

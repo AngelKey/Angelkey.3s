@@ -6,6 +6,8 @@ log = require './log'
 stream = require 'stream'
 {Queue} = require './queue'
 
+iced.catchExceptions()
+
 #==================================================================
 
 pack2 = (o) ->
@@ -119,6 +121,8 @@ class Transform extends stream.Transform
   constructor : (pipe_opts) ->
     super pipe_opts
     @_blocks = []
+    @_disable_ciphers()
+    @_disable_streaming()
 
   #---------------------------
 
@@ -221,15 +225,12 @@ exports.Encryptor = class Encryptor extends Transform
   constructor : ({@stat, @pwmgr}, pipe_opts) ->
     super pipe_opts
     @packed_stat = pack2 @stat, 'buffer'
-    @_disable_ciphers()
-    @_disable_streaming()
 
   #---------------------------
 
   validate : () -> [ true ]
 
   #---------------------------
-
 
   _flush_ciphers : () -> @_sink_fn @_mac @_final()
 
@@ -350,7 +351,7 @@ exports.Decryptor = class Decryptor extends Transform
         log.error "In reading msgpack frame: #{err}"
       else if not (typeof(frame) is number)
         log.error "Expected frame as a number: got #{frame}"
-      else if not 
+      else 
         await @_dequeue frame, defer b
         [err, out] = purepack.unpack b
         log.error "In unpacking #{b.inspect()}: #{err}" if err?

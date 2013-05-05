@@ -4,8 +4,10 @@
 log = require './log'
 {PasswordManager} = require './pw'
 base58 = require '../lib/base58'
+crypto = require 'crypto'
 mycrypto = require '../lib/crypto'
 myfs = require '../lib/fs'
+fs = require 'fs'
 
 #=========================================================================
 
@@ -16,7 +18,7 @@ pick = (args...) ->
 
 #=========================================================================
 
-dmerge : (dl) ->
+dmerge = (dl) ->
   ret = {}
   for d in dl
     for k,v of d
@@ -120,7 +122,7 @@ exports.Base = class Base
 
 #=========================================================================
 
-exports.CipherBase extends Base
+exports.CipherBase = class CipherBase extends Base
    
   #-----------------
 
@@ -251,25 +253,35 @@ exports.CipherBase extends Base
   #-----------------
 
   run : (cb) ->
+    console.log "A #{ok}"
     await @init defer ok
+    console.log "B #{ok}"
+
+    opened = false
 
     if ok
-      @eng = new @eng_class() { @pwmgr, @stat }
+      opened = true
+      @eng = @make_eng { @pwmgr, @stat }
       await @eng.init defer ok
       if not ok
         log.error "Could not setup keys for encryption/decryption"
 
+    console.log "C #{ok}"
     if ok
-      @istream.pipe(eng).pipe(@ostream)
+      @istream.pipe(@eng).pipe(@ostream)
       await @istream.once 'end', defer()
       await @ostream.once 'finish', defer()
 
+    console.log "D #{ok}"
     if ok
       [ok, err] = @eng.validate()
       if not ok
         log.error "Final validation error: #{err}"
 
-    await @cleanup ok, defer()
+    console.log "E #{ok}"
+
+    await @cleanup ok, defer() if opened
+    cb ok
 
 #=========================================================================
 
