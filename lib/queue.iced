@@ -38,16 +38,16 @@ exports.Queue = class Queue
     ret = []
     m = 0
 
-    while m < n and @_buffers.length
+    while (n_needed = n - m) > 0 and @_buffers.length
       b = @_buffers[0]
       l = b.length
 
-      if (l + m) > n
+      if l > n_needed
         # We're over what we need, so we need to take only a portion
         # of the front buffer...
-        l = l + m - n
-        b = @_buffers[0...l]
-        @_buffers[0] = @_buffers[l...]
+        l = n_needed
+        b = @_buffers[0][0...l]
+        @_buffers[0] = @_buffers[0][l...]
       else
         # We're under or equal to what we need, so take the whole thing.
         @_buffers.shift()
@@ -56,14 +56,18 @@ exports.Queue = class Queue
       @_n -= l
       ret.push b
 
-    return Buffer.concat ret
+    Buffer.concat ret
 
   #---------------------------
 
   read : (n, cb) ->
-    while n < @_n and not @_eof
+    console.log "read #{n} #{@_n}"
+    while @_n < n and not @_eof
+      console.log "Waiting..."
       await @_cb = defer()
+      console.log "wait's over!"
     b = @pop_bytes n
+    console.log "popping and returning...#{b.inspect()}"
     cb b
     
 #==================================================================

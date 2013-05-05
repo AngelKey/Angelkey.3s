@@ -92,7 +92,7 @@ class Preamble
 
 #==================================================================
 
-msgpack_packed_numlen : (byt) ->
+msgpack_packed_numlen = (byt) ->
   if      byt < 0x80  then 1
   else if byt is 0xcc then 2
   else if byt is 0xcd then 3
@@ -314,7 +314,8 @@ exports.Decryptor = class Decryptor extends Transform
   #---------------------------
 
   _enable_clear_queuing : ->
-    @_enqueue = (block) => @_q.push block
+    @_enqueue = (block) => 
+      @_q.push block
     @_dequeue = (n, cb) => 
       await @_q.read n, defer b
       @_mac b if b?
@@ -346,16 +347,26 @@ exports.Decryptor = class Decryptor extends Transform
   #---------------------------
 
   _read_unpack : (cb) ->
-    await @_dequeue 1, defer b
-    framelen = msgpack_packed_numlen b
+    await @_dequeue 1, defer b0
+    framelen = msgpack_packed_numlen b0[0]
     if framelen is 0
       log.error "Bad msgpack len header: #{b.inspect()}"
     else
-      await @_dequeue framelen, defer b
-      [err, frame] = purepack.unpack b 
+
+      if framelen > 1
+        # Read the rest out...
+        await @_dequeue (framelen-1), defer b1
+        b = Buffer.concat [b0, b1]
+      else
+        b = b0
+
+      # We've read the framing in two parts -- the first byte
+      # and then the rest
+      [err, frame] = purepack.unpack b
+
       if err?
         log.error "In reading msgpack frame: #{err}"
-      else if not (typeof(frame) is number)
+      else if not (typeof(frame) is 'number')
         log.error "Expected frame as a number: got #{frame}"
       else 
         await @_dequeue frame, defer b
