@@ -65,6 +65,7 @@ class AlgoFactory
     @ENC_BLOCK_SIZE = 16
     # Use the same keysize for our MAC too
     @MAC_KEY_SIZE = 32
+    @MAC_OUT_SIZE = 32
 
   total_key_size : () ->
     2 * @ENC_KEY_SIZE + @MAC_KEY_SIZE
@@ -92,13 +93,59 @@ gaf = new AlgoFactory()
 
 #==================================================================
 
+class FooterizingFilter
+
+  #----------------
+
+  constructor : (@filesz) ->
+    @_i = 0
+    @_footer_blocks = []
+    @_footer_len = null
+
+  #----------------
+
+  filter : (block) ->
+    # See Preamble --- the footer len is encoded in the first byte
+    # of the file.  This is a hack that should work for all practical
+    # purposes.
+    @_footer_len = block[0] unless @_footer_len?
+
+    # Bytes of the body of the file that remain.  
+    bdrem = @filesz - @_i - @_footer_len
+    if block.length > bdrem
+      footer_part = if (bdrem > 0) then block[bdrem...] else block
+      @_footer_blocks.push footer_part
+      ret = if (bdrem > 0) then block[0...bdrem] else null
+    else
+      ret = block
+
+    @_i += block.length
+    return ret
+
+  #----------------
+
+  footer : () ->
+    ret = Buffer.concat @_footer_blocks
+    if ret.length isnt @_footer_len
+      log.warn "Got wrong footer size; wanted #{@_footer_len}, but got #{ret.length}"
+    ret
+
+#==================================================================
+
 class Preamble
 
   @pack : () ->
     C = constants.Preamble
     i = new Buffer 4
     i.writeUInt32BE C.FILE_VERSION, 0
-    Buffer.concat [ new Buffer(C.FILE_MAGIC), i ]
+    ret = Buffer.concat [ new Buffer(C.FILE_MAGIC), i ]
+
+    # As a pseudo-hack, the first byte is the length of the footer.
+    # This makes framing the file convenient.
+    footer_len = pack2(new Buffer [0...(gaf.MAC_OUT_SIZE) ]).length
+    ret[0] = footer_len
+
+    ret
 
   @unpack : (b) -> bufeq Preamble.pack(), b
   
@@ -316,12 +363,18 @@ exports.Encryptor = class Encryptor extends Transform
 
 exports.Decryptor = class Decryptor extends Transform
 
-  constructor : ({@pwmgr}, pipe_opts) ->
+  constructor : ({@pwmgr, @stat, @total_size}, pipe_opts) ->
     super pipe_opts
     @_section = HEADER
     @_n = 0  # number of body bytes reads
     @_q = new Queue
     @_enable_clear_queuing()
+
+    @total_size = @stat.size if @stat? and not @total_size?
+    if not @total_size?
+      throw new Error "cannot find filesize"
+
+    @_ff = new FooterizingFilter @total_size
 
   #---------------------------
 
@@ -465,16 +518,30 @@ exports.Decryptor = class Decryptor extends Transform
   #---------------------------
 
   _flush : (cb)->
-    @_final()
-    @_q.set_eof()
+
+    # First flush the decryption pipeline and write any
+    # new blocks out to the output stream
+    block = @_final()
+    @push block if block? and block.length
+
+    # Now change over the clear block queuing. 
+    @_enable_clear_queuing()
+
+    # The footer is in the FooterizingFilter, which kept the
+    # last N bytes of the stream...
+    @_enqueue @_ff.footer()
+
+    # Finally, we can check the mac and hope that it works...
     await @_check_mac defer @_final_mac_ok
+
     cb()
 
   #---------------------------
 
   _stream_body : (block, cb) ->
+    console.log "stream block #{block.length}"
     @push bl if (bl = @_update_ciphers @_mac block)?
-    cb()
+    cb?() 
 
   #---------------------------
 
@@ -482,45 +549,23 @@ exports.Decryptor = class Decryptor extends Transform
     @_section = BODY
     buf = @_q.flush()
     @_disable_queueing()
-    @_handle_body buf
+    console.log "Flushing Buf #{buf.length}"
+    @push buf
 
   #---------------------------
 
   _read_metadata : (cb) ->
-    await @_read_unpack defer obj
-    cb ok
-
-  #---------------------------
-
-  _start_footer : (block) ->
-    @_section = FOOTER
-    @_enable_clear_queuing()
-    @_enqueue block
-
-  #---------------------------
-
-  _handle_body : (block, cb) ->
-    console.log "handle body len=#{block.length}"
-
-    bl = block.length
-    tot = @hdr.filesize
-    b_rem = null
-
-    if (diff = bl + @_n - tot) > 0
-      tmp = block[0...diff]
-      b_rem = block[diff...]
-      block = tmp
-
-    @_n += block.length
-    await @_stream_body block, defer()
-    @_start_footer b_rem if diff >= 0
-    cb()
+    await @_read_unpack defer @_metadata
+    cb !!@_metadata
 
   #---------------------------
 
   _transform : (block, encoding, cb) ->
-    if @_enqueue? then @_enqueue block
-    else await @_handle_body block, defer()
+    block = @_ff.filter block
+    console.log "Incoming block #{block.length}"
+    if not block? or not block.length then null
+    else if @_enqueue? then @_enqueue block
+    else await @_stream_body block, defer()
     cb()
 
 #==================================================================
