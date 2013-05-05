@@ -195,6 +195,11 @@ exports.CipherBase extends Base
 
   #-----------------
 
+  # Maybe eventually decryption can do something here...
+  patch_file_metadata : (cb) -> cb()
+
+  #-----------------
+
   cleanup_on_success : (cb) ->
     await fs.rename @tmpfn, @outfn, defer err
     ok = true
@@ -206,6 +211,8 @@ exports.CipherBase extends Base
       if err?
         log.error "Error in removing original file #{@infn}: #{err}"
         ok = false
+    if ok
+      await @patch_file_metadata defer()
     cb ok
     
   #-----------------
@@ -241,5 +248,28 @@ exports.CipherBase extends Base
       await @open_output defer ok, @ostream
     cb ok
   
+  #-----------------
+
+  run : (cb) ->
+    await @init defer ok
+
+    if ok
+      @eng = new @eng_class() { @pwmgr, @stat }
+      await @eng.init defer ok
+      if not ok
+        log.error "Could not setup keys for encryption/decryption"
+
+    if ok
+      @istream.pipe(eng).pipe(@ostream)
+      await @istream.once 'end', defer()
+      await @ostream.once 'finish', defer()
+
+    if ok
+      [ok, err] = @eng.validate()
+      if not ok
+        log.error "Final validation error: #{err}"
+
+    await @cleanup ok, defer()
+
 #=========================================================================
 

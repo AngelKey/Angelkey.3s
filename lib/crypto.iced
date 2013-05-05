@@ -226,6 +226,10 @@ exports.Encryptor = class Encryptor extends Transform
 
   #---------------------------
 
+  validate : () -> [ true ]
+
+  #---------------------------
+
 
   _flush_ciphers : () -> @_sink_fn @_mac @_final()
 
@@ -392,9 +396,16 @@ exports.Decryptor = class Decryptor extends Transform
 
   init_stream : (cb) ->
     ok = true
-
     @_prepare_macs()
     @_prepare_ciphers false
+    cb ok
+
+    # Set this up to fly in the background...
+    read_headers()
+
+  #---------------------------
+
+  read_headers : (cb) ->
 
     await @_read_preamble defer ok
     await @_read_header   defer ok if ok
@@ -404,11 +415,14 @@ exports.Decryptor = class Decryptor extends Transform
     await @_read_metadata defer ok if ok 
 
     @_start_body()                 if ok
-    cb ok
+
+    cb?()
 
   #---------------------------
 
-  validate : () -> @_final_mac_ok
+  validate : () -> 
+    if @_final_mac_ok then [ true, null ]
+    else [ false, "Full-file MAC failed" ]
 
   #---------------------------
 
