@@ -1,26 +1,19 @@
-#!/usr/bin/env iced
 
-cmd = require '../lib/command'
-mycrypto = require '../lib/crypto'
+{CipherBase} = require './base'
+mycrypto = require '../crypto'
 
 #=========================================================================
 
-class Command extends cmd.CipherBase
-
-  #-----------------
-
+exports.Command = class Command extends CipherBase
   output_filename : () ->
     @argv.o or [ @infn, @file_extension() ].join '.'
-
-  #-----------------
-
   make_eng : (args...) -> new mycrypto.Encryptor args...
 
-#=========================================================================
-
-cmd = new Command()
-await cmd.run defer ok
-process.exit if ok then 0 else -2
+  subcommand : ->
+    help : 'encrypt a file'
+    name :  'encrypt'
+    aliases : [ 'enc' ]
+    epilog : "Act like a unix filter and just encrypt a file to local storage"
 
 #=========================================================================
 

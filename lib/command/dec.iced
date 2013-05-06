@@ -1,11 +1,11 @@
 #!/usr/bin/env iced
 
-cmd = require '../lib/command'
-mycrypto = require '../lib/crypto'
+{CipherBase} = require './base'
+mycrypto = require '../crypto'
 
 #=========================================================================
 
-class Command extends cmd.CipherBase
+exports.Command = class Command extends cmd.CipherBase
    
   #-----------------
 
@@ -15,14 +15,11 @@ class Command extends cmd.CipherBase
     else null
 
   #-----------------
-
+ 
   make_eng : (args...) -> new mycrypto.Decryptor args...
+  
+  #-----------------
+ 
+  short_description : -> "encrypt a local file"
 
 #=========================================================================
-
-cmd = new Command()
-await cmd.run defer ok
-process.exit if ok then 0 else -2
-
-#=========================================================================
-
