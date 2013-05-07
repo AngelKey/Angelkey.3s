@@ -56,13 +56,17 @@ exports.Base = class Base
   #-------------------
 
   need_aws : () -> true
-  check_args : () -> true
 
   #-------------------
 
-  init : (usage, cb) ->
-    ok = @parse_options usage
-    await @config.load @argv.c, defer ok  if ok
+  init : (cb) ->
+    await @config.find @argv.config, defer fc
+    if fc 
+      await @config.load defer ok
+    else if @need_aws()
+      log.error "Cannot find config file #{@config.filename}; needed for AWS"
+      ok = false
+
     ok = @aws.init @config.aws            if ok and @need_aws()
     ok = @_init_pwmgr()                   if ok
     cb ok
@@ -72,7 +76,7 @@ exports.Base = class Base
   _init_pwmgr : () ->
     pwopts =
       password   : @password()
-      no_prompt  : @argv.P
+      no_prompt  : @argv.no_prompt
       salt       : @salt_or_email()
 
     @pwmgr.init pwopts
@@ -84,9 +88,9 @@ exports.Base = class Base
 
   #-------------------
 
-  password : () -> pick @argv.p, @config.password()
-  email    : () -> pick @argv.e, @config.email()
-  salt     : () -> pick @argv.s, @config.salt()
+  password : () -> pick @argv.password, @config.password()
+  email    : () -> pick @argv.email, @config.email()
+  salt     : () -> pick @argv.salt, @config.salt()
   salt_or_email : () -> pick @salt(), @email()
 
 #=========================================================================
@@ -113,14 +117,6 @@ exports.CipherBase = class CipherBase extends Base
 
   #-----------------
 
-  check_args : () ->
-    if @argv._.length isnt 1
-      log.warn "Need an input file argument"
-      false
-    else true
-
-  #-----------------
-
   file_extension : () -> @argv.x or @config.file_extension()
 
   #-----------------
@@ -129,8 +125,6 @@ exports.CipherBase = class CipherBase extends Base
     v = fn.split "."
     x = @file_extension()
     l = v.length
-    console.log v[l-1]
-    console.log x
     if v[l-1] is x then v[0...(l-1)].join '.'
     else null
 
@@ -202,10 +196,11 @@ exports.CipherBase = class CipherBase extends Base
   #-----------------
 
   init : (cb) ->
-    await super @USAGE, defer ok
+    await super defer ok
+    console.log @argv
     if ok
-      @infn = @argv._[0]
-      await myfs.open { filename :  @infn }, defer err, @istream, @stat
+      @infn = @argv.file[0]
+      await myfs.open { filename : @infn }, defer err, @istream, @stat
       ok = false if err?
     if ok
       await @open_output defer ok, @ostream
@@ -224,7 +219,7 @@ exports.CipherBase = class CipherBase extends Base
     add_option_dict sub, opts if opts?
 
     # There's an optional input filename, since stdin can work too
-    sub.addArgument ["file"], { nargs : "?" }
+    sub.addArgument ["file"], { nargs : 1 } 
 
   #-----------------
 

@@ -9,7 +9,7 @@ exports.Command = class Command extends CipherBase
   #-----------------
 
   output_filename : () ->
-    @argv.o or [ @infn, @file_extension() ].join '.'
+    @argv.output or [ @infn, @file_extension() ].join '.'
 
   #-----------------
 

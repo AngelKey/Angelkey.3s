@@ -7,6 +7,8 @@ log = require './log'
 
 exports.Config = class Config
 
+
+
   #-------------------
 
   constructor : () ->
@@ -21,18 +23,20 @@ exports.Config = class Config
 
   #-------------------
 
-  load : (fn, cb) ->
-    @init fn
-    
-    await fs.exists @filename, defer ok
+  find : (file, cb) ->
+    @init file
+    await fs.exists @filename, defer @found
+    cb @found
 
-    if not ok
-      log.error "Cannot find config file #{@filename}"
-    else
-      await fs.readFile @filename, defer err, file
-      if err?
-        log.error "Cannot read file #{@filename}: #{err}"
-        ok = false
+  #-------------------
+
+  load : (cb) ->
+    ok = true
+    
+    await fs.readFile @filename, defer err, file
+    if err?
+      log.error "Cannot read file #{@filename}: #{err}"
+      ok = false
 
     if ok
       try

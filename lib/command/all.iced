@@ -60,7 +60,7 @@ class Main
 
   parse_args : () ->
     argv = @ap.parseArgs process.argv[2...]
-    cmd = @commands[@argv.subcommand_name]
+    cmd = @commands[argv.subcommand_name]
     cmd.set_argv argv
     cmd
 

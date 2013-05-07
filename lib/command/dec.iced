@@ -9,8 +9,8 @@ exports.Command = class Command extends CipherBase
   #-----------------
 
   output_filename : () ->
-    if not @argv.o? then @strip_extension @infn
-    else if @argv.o isnt '-' then @argv.o
+    if not (o = @argv.output)? then @strip_extension @infn
+    else if o isnt '-' then o
     else null
 
   #-----------------
