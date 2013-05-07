@@ -31,7 +31,7 @@ exports.Base = class Base
 
   #-------------------
 
-  constructor : () ->
+  constructor : (@argv) ->
     @config = new Config()
     @aws    = new AwsWrapper()
     @pwmgr  = new PasswordManager()
@@ -43,46 +43,33 @@ exports.Base = class Base
 
   #-------------------
 
-  parse_options : (usage) ->
-    opts = 
-      e :
-        alias : 'email'
-        describe : 'email address, used for salting passwords & other things'
-      s : 
-        alias : 'salt'
-        describe : 'salt used as salt and nothing else; overrides emails'
-      p :
-        alias : 'password'
-        describe : 'password used for encryption / decryption'
-      P :
-        boolean : true
-        alias : 'no-prompt'
-        describe : "Don't prompt for a password if we were going to"
-      n : 
-        boolean : true
-        alias : 'no-encryption'
-        describe : "don't use encryption when uploading / downloading"
-      c : 
-        alias : 'config-file'
-        describe : 'a configuration file (rather than ~/.mkb.conf)'
-      h : 
-        boolean : true
-        alias : 'help'
-        describe : 'print this help message'
+  @add_options : (p) ->
+    p.addArgument(
+    opts = [ 
+      [[ '-e', '--email'], {
+        action : 'store',
+        help : 'email address, used for salting passwords & other things' 
+      }],
+      [[ '-s', '--salt' ], {
+        action : 'store',
+        help : 'salt used as salt and nothing else; overrides emails'
+      }],
+      [[ '-p', '--password' ],{
+        action : 'store',
+        help : 'password used for encryption / decryption'
+      }],
+      [[ '-P', '--no-prompt' ],{
+        action : 'storeTrue',
+        help : "Don't prompt for a PW if we were going to"
+      }],
+      [[ '-c', '--config' ], {
+        action : 'store',
+        help : 'a configuration file (rather than ~/.mkb.conf)'
+      }]
+    ]
 
-    opts = dmerge [ opts ].concat @opts_annex
-
-    opti = require('optimist').options(opts).usage(usage)
-
-    @argv = opti.argv
-
-    ok = true
-
-    if @argv.h or not @check_args()
-      opti.showHelp()
-      ok = false
-
-    ok
+    for o in opts
+      p.addArgument o...
 
   #-------------------
 

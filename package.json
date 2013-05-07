@@ -28,7 +28,7 @@
     "iced-coffee-script" : "*",
     "progress"           : "*",
     "aws-sdk"            : "*",
-    "optimist"           : "*",
+    "argparse"           : "*",
     "read"               : "*",
     "bignum"             : "*",
     "colors"             : "*",
