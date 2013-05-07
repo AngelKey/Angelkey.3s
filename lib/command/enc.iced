@@ -1,10 +1,10 @@
 
-cmd = require '../lib/command'
-mycrypto = require '../lib/crypto'
+{CipherBase} = require './base'
+mycrypto = require '../crypto'
 
 #=========================================================================
 
-class Command extends cmd.CipherBase
+exports.Command = class Command extends CipherBase
 
   #-----------------
 

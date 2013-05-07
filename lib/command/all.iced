@@ -1,28 +1,8 @@
-
-optim = require 'optimist'
 {Base} = require './base'
-path = require 'path'
-fs = require 'fs'
 log = require '../log'
 {ArgumentParser} = require 'argparse'
 {add_option_dict} = require './argparse'
-
-##=======================================================================
-
-read_version = (cb) ->
-  f = path __dirname, '..', '..', 'package.json'
-  await fs.readFile f, "r", defer err, data
-  if err?
-    log.error "cannot open package.json: #{err}"
-  else
-    try 
-      obj = JSON.parse data
-      ret = obj.version
-      unless ret?
-        log.error "package.json doesn't say which 'version' we are"
-    catch e
-      log.error "Bad json in package.json: #{e}"
-  cb ret
+{PackageJson} = require '../package'
 
 ##=======================================================================
 
@@ -32,20 +12,19 @@ class Main
 
   constructor : ->
     @commands = {}
+    @pkjson = new PackageJson()
 
   #---------------------------------
 
   init : (cb) ->
     ok = true
-    await read_version defer v
-    ok = false unless v?
-
+    await @pkjson.read defer ok
     if ok
       @ap = new ArgumentParser 
         addHelp : true
-        version : v
+        version : @pkjson.version()
         description : 'Backup files to AWS glacier'
-        prog : process.argv[1]
+        prog : @pkjson.bin()
 
       ok = @add_subcommands()
     cb ok
@@ -70,7 +49,7 @@ class Main
     @commands = {}
 
     for m in list
-      mod = require './#{m}'
+      mod = require "./#{m}"
       obj = new mod.Command()
       obj.add_subcommand_parser subparsers
       @commands[m] = obj
@@ -88,14 +67,9 @@ class Main
   #---------------------------------
 
   run : () ->
-    ok = @parse_args()
-    ok = true
-    if process.argv.length >= 3 and (obj = @commands[process.argv[2]])?
-      obj = maker()
-      await obj.run process.argv[2...], defer ok
-    else
-      @help()
-      ok = false
+    await @init defer ok
+    cmd = @parse_args() if ok
+    await cmd.run defer ok if cmd?
     process.exit if ok then 0 else -2
 
 ##=======================================================================

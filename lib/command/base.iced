@@ -1,12 +1,12 @@
 
-{AwsWrapper} = require './aws'
-{Config} = require './config'
-log = require './log'
-{PasswordManager} = require './pw'
-base58 = require '../lib/base58'
+{AwsWrapper} = require '../aws'
+{Config} = require '../config'
+log = require '../log'
+{PasswordManager} = require '../pw'
+base58 = require '../base58'
 crypto = require 'crypto'
-mycrypto = require '../lib/crypto'
-myfs = require '../lib/fs'
+mycrypto = require '../crypto'
+myfs = require '../fs'
 fs = require 'fs'
 {rmkey} = require '../util'
 {add_option_dict} = require './argparse'
@@ -35,22 +35,22 @@ exports.Base = class Base
 
   #-------------------
 
-  OPTS : 
+  @OPTS :
     e :
       alias : 'email'
       help : 'email address, used for salting passwords & other things' 
     s :
-      aliases : 'salt'
+      alias : 'salt'
       help : 'salt used as salt and nothing else; overrides emails'
     p : 
-      aliases : 'password'
+      alias : 'password'
       help : 'password used for encryption / decryption'
     P : 
-      aliases : 'no-prompt'
+      alias : 'no-prompt'
       action : 'storeTrue',
       help : "Don't prompt for a PW if we were going to"
     c : 
-      aliases : 'config'
+      alias : 'config'
       help : 'a configuration file (rather than ~/.mkb.conf)'
 
   #-------------------
@@ -97,10 +97,10 @@ exports.CipherBase = class CipherBase extends Base
 
   OPTS :
     o :
-      aliases : "output"
+      alias : "output"
       help : "output file to write to"
     r :
-      aliases : "remove" 
+      alias : "remove" 
       action : 'storeTrue'
       help : "remove the original file after encryption"
     x :
@@ -118,12 +118,6 @@ exports.CipherBase = class CipherBase extends Base
       log.warn "Need an input file argument"
       false
     else true
-
-  #-----------------
-   
-  constructor : () ->
-    super()
-    @add_opts @OPTS
 
   #-----------------
 
@@ -230,7 +224,7 @@ exports.CipherBase = class CipherBase extends Base
     add_option_dict sub, opts if opts?
 
     # There's an optional input filename, since stdin can work too
-    scp.addArgument ["file"], { nargs : "?" }
+    sub.addArgument ["file"], { nargs : "?" }
 
   #-----------------
 

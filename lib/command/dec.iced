@@ -4,7 +4,7 @@ mycrypto = require '../crypto'
 
 #=========================================================================
 
-exports.Command = class Command extends cmd.CipherBase
+exports.Command = class Command extends CipherBase
    
   #-----------------
 
