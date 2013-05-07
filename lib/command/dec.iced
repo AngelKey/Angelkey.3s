@@ -1,4 +1,3 @@
-#!/usr/bin/env iced
 
 {CipherBase} = require './base'
 mycrypto = require '../crypto'
@@ -20,6 +19,10 @@ exports.Command = class Command extends cmd.CipherBase
   
   #-----------------
  
-  short_description : -> "encrypt a local file"
+  subcommand : ->
+    help : 'decrypt a file'
+    name : 'decrypt'
+    aliases : [ 'dec' ]
+    epilog : 'Act like a unix filter and decrypt a local file'
 
 #=========================================================================

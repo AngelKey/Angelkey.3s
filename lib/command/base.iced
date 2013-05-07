@@ -8,6 +8,8 @@ crypto = require 'crypto'
 mycrypto = require '../lib/crypto'
 myfs = require '../lib/fs'
 fs = require 'fs'
+{rmkey} = require '../util'
+{add_option_dict} = require './argparse'
 
 #=========================================================================
 
@@ -15,15 +17,6 @@ pick = (args...) ->
   for a in args
     return a if a?
   return null
-
-#=========================================================================
-
-dmerge = (dl) ->
-  ret = {}
-  for d in dl
-    for k,v of d
-      ret[k] = v
-  ret
 
 #=========================================================================
 
@@ -35,41 +28,26 @@ exports.Base = class Base
     @config = new Config()
     @aws    = new AwsWrapper()
     @pwmgr  = new PasswordManager()
-    @opts_annex = []
 
   #-------------------
 
-  add_opts : (o) -> @opts_annex.push o
-
-  #-------------------
-
-  @add_options : (p) ->
-    p.addArgument(
-    opts = [ 
-      [[ '-e', '--email'], {
-        action : 'store',
-        help : 'email address, used for salting passwords & other things' 
-      }],
-      [[ '-s', '--salt' ], {
-        action : 'store',
-        help : 'salt used as salt and nothing else; overrides emails'
-      }],
-      [[ '-p', '--password' ],{
-        action : 'store',
-        help : 'password used for encryption / decryption'
-      }],
-      [[ '-P', '--no-prompt' ],{
-        action : 'storeTrue',
-        help : "Don't prompt for a PW if we were going to"
-      }],
-      [[ '-c', '--config' ], {
-        action : 'store',
-        help : 'a configuration file (rather than ~/.mkb.conf)'
-      }]
-    ]
-
-    for o in opts
-      p.addArgument o...
+  OPTS : 
+    e :
+      alias : 'email'
+      help : 'email address, used for salting passwords & other things' 
+    s :
+      aliases : 'salt'
+      help : 'salt used as salt and nothing else; overrides emails'
+    p : 
+      aliases : 'password'
+      help : 'password used for encryption / decryption'
+    P : 
+      aliases : 'no-prompt'
+      action : 'storeTrue',
+      help : "Don't prompt for a PW if we were going to"
+    c : 
+      aliases : 'config'
+      help : 'a configuration file (rather than ~/.mkb.conf)'
 
   #-------------------
 
@@ -114,20 +92,16 @@ exports.CipherBase = class CipherBase extends Base
   #-----------------
 
   OPTS :
-    o : 
-      alias : "output"
-      describe : "output file to write to"
+    o :
+      aliases : "output"
+      help : "output file to write to"
     r :
-      alias : "remove"
-      describe : "remove the original file after encryption"
-      boolean : true
+      aliases : "remove" 
+      action : 'storeTrue'
+      help : "remove the original file after encryption"
     x :
       alias : "extension"
-      describe : "encrypted file extension"
-
-  #-----------------
-
-  USAGE : "Usage: $0 [opts] <infile>"
+      help : "encrypted file extension"
 
   #-----------------
 
@@ -239,6 +213,18 @@ exports.CipherBase = class CipherBase extends Base
       await @open_output defer ok, @ostream
     cb ok
   
+  #-----------------
+
+  add_subcommand_parser : (scp) ->
+    # Ask the child class for the subcommand particulars....
+    scd = @subcommand()
+    name = rmkey scd, 'name'
+    opts = rmkey scd, 'options'
+
+    sub = scp.addParser name, scd
+    add_option_dict sub, @OPTS
+    add_option_dict sub, opts if opts?
+
   #-----------------
 
   run : (cb) ->
