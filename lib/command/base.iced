@@ -24,10 +24,14 @@ exports.Base = class Base
 
   #-------------------
 
-  constructor : (@argv) ->
+  constructor : () ->
     @config = new Config()
     @aws    = new AwsWrapper()
     @pwmgr  = new PasswordManager()
+
+  #-------------------
+
+  set_argv : (a) -> @argv = a
 
   #-------------------
 
@@ -224,6 +228,9 @@ exports.CipherBase = class CipherBase extends Base
     sub = scp.addParser name, scd
     add_option_dict sub, @OPTS
     add_option_dict sub, opts if opts?
+
+    # There's an optional input filename, since stdin can work too
+    scp.addArgument ["file"], { nargs : "?" }
 
   #-----------------
 

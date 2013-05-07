@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 
-var ArgumentParser = require('../lib/argparse').ArgumentParser;
+var ArgumentParser = require('argparse').ArgumentParser;
 var parser = new ArgumentParser({
   version: '0.0.1',
   addHelp: true,
@@ -41,6 +41,7 @@ bar.addArgument(
     help: 'foo3 bar3'
   }
 );
+bar.addArgument(["files"], {nargs : "*"});
 parser.printHelp();
 console.log('-----------');
 
@@ -51,7 +52,7 @@ console.log('-----------');
 args = parser.parseArgs('c2 -b 1'.split(' '));
 console.dir(args);
 console.log('-----------');
-args = parser.parseArgs('co -b 1 yo yo ma'.split(' '));
+args = parser.parseArgs('co -b 1 yo'.split(' '));
 console.dir(args);
 console.log('-----------');
 parser.parseArgs(['c1', '-h']);

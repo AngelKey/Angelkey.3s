@@ -19,8 +19,8 @@ class Command extends cmd.CipherBase
  
   subcommand : ->
     help : 'encrypt a file'
-    name : 'encrypt'
-    aliases : [ 'enc' ]
+    name : 'enc'
+    aliases : [ 'encrypt' ]
     epilog : 'Act like a unix filter and encrypt a local file'
 
 

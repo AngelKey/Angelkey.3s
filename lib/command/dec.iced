@@ -21,8 +21,8 @@ exports.Command = class Command extends cmd.CipherBase
  
   subcommand : ->
     help : 'decrypt a file'
-    name : 'decrypt'
-    aliases : [ 'dec' ]
+    name : 'dec'
+    aliases : [ 'decrypt' ]
     epilog : 'Act like a unix filter and decrypt a local file'
 
 #=========================================================================
