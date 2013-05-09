@@ -193,8 +193,8 @@ exports.CipherBase = class CipherBase extends Base
     if ok 
       await @cleanup_on_success defer ok
     else
-      @output?.stream?.close()
-      @input?.stream?.close()
+      @output?.close()
+      @input?.close()
       await @cleanup_on_failure defer()
     cb()
 
@@ -235,7 +235,7 @@ exports.CipherBase = class CipherBase extends Base
 
     if ok
       opened = true
-      @eng = @make_eng { @pwmgr, @stat }
+      @eng = @make_eng { @pwmgr, @input.stat }
       await @eng.init defer ok
       if not ok
         log.error "Could not setup keys for encryption/decryption"

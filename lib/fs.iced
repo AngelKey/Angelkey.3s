@@ -5,6 +5,14 @@ C = require 'constants'
 
 ##======================================================================
 
+exports.File = class File
+
+  constructor : ({@stream, @stat, @realpath, @filename, @fd}) ->
+
+  close : () -> @stream?.close()
+
+##======================================================================
+
 exports.open = ({filename, write, mode, bufferSize}, cb) ->
   mode or= 0o640
   bufferSize or= 1024*1024
@@ -30,7 +38,10 @@ exports.open = ({filename, write, mode, bufferSize}, cb) ->
     f = if write then fs.createWriteStream else fs.createReadStream
     stream = f filename, opts
 
-  cb err, { stream , stat, realpath, filename, fd } 
+  file = if err? then null
+  else new File { stream , stat, realpath, filename, fd }
+
+  cb err, file
 
 ##======================================================================
 
