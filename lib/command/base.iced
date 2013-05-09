@@ -93,6 +93,12 @@ exports.Base = class Base
   salt     : () -> pick @argv.salt, @config.salt()
   salt_or_email : () -> pick @salt(), @email()
 
+  #----------------
+
+  base_open_input : (fn, cb) ->
+    await myfs.open { filename : fn }, defer err, input
+    cb err, input
+
 #=========================================================================
 
 exports.CipherBase = class CipherBase extends Base
@@ -140,15 +146,14 @@ exports.CipherBase = class CipherBase extends Base
     ok = true
     if (ofn = @output_filename())?
       @outfn = ofn
-      @tmpfn = @tmp_filename @outfn
-      await myfs.open { filename : @tmpfn, write : true }, defer err, ostream
+      tmpfn = @tmp_filename @outfn
+      await myfs.open { filename : tmpfn, write : true }, defer err, output
       if err?
-        log.error "Error opening temp outfile #{@tmpfn}: #{err}"
+        log.error "Error opening temp outfile #{tmpfn}: #{err}"
         ok = false
-    else
-      @outfn = "<stdout>"
-      ostream = process.stdout 
-    cb ok, ostream
+    else 
+      output = myfs.stdout()
+    cb ok, output
 
   #-----------------
 
@@ -158,15 +163,15 @@ exports.CipherBase = class CipherBase extends Base
   #-----------------
 
   cleanup_on_success : (cb) ->
-    await fs.rename @tmpfn, @outfn, defer err
+    await fs.rename @output.filename, @outfn, defer err
     ok = true
     if err?
       log.error "Problem in file rename: #{err}"
       ok = false
     if ok and @argv.r
-      await fs.unlink @infn, defer err
+      await fs.unlink @input.filename, defer err
       if err?
-        log.error "Error in removing original file #{@infn}: #{err}"
+        log.error "Error in removing original file #{@input.file}: #{err}"
         ok = false
     if ok
       await @patch_file_metadata defer()
@@ -176,9 +181,9 @@ exports.CipherBase = class CipherBase extends Base
 
   cleanup_on_failure : (cb) ->
     ok = true
-    await fs.unlink @tmpfn, defer err
+    await fs.unlink @output.tmpfn, defer err
     if err?
-      log.warn "cannot remove temporary file #{@tmpfn}: #{err}"
+      log.warn "cannot remove temporary file #{@output.tmpfn}: #{err}"
       ok = false
     cb ok
 
@@ -188,8 +193,8 @@ exports.CipherBase = class CipherBase extends Base
     if ok 
       await @cleanup_on_success defer ok
     else
-      @ostream.close() if @ostream?
-      @istream.close() if @istream?
+      @output?.stream?.close()
+      @input?.stream?.close()
       await @cleanup_on_failure defer()
     cb()
 
@@ -197,13 +202,13 @@ exports.CipherBase = class CipherBase extends Base
 
   init : (cb) ->
     await super defer ok
-    console.log @argv
     if ok
-      @infn = @argv.file[0]
-      await myfs.open { filename : @infn }, defer err, @istream, @stat
-      ok = false if err?
+      await @base_open_input argv.file[0], defer err, @input
+      if err?
+        log.error "In opening input file: #{err}"
+        ok = false
     if ok
-      await @open_output defer ok, @ostream
+      await @open_output defer ok, @output
     cb ok
   
   #-----------------
@@ -236,9 +241,9 @@ exports.CipherBase = class CipherBase extends Base
         log.error "Could not setup keys for encryption/decryption"
 
     if ok
-      @istream.pipe(@eng).pipe(@ostream)
-      await @istream.once 'end', defer()
-      await @ostream.once 'finish', defer()
+      @input.stream.pipe(@eng).pipe(@output.stream)
+      await @input.stream.once 'end', defer()
+      await @output.stream.once 'finish', defer()
 
     if ok
       [ok, err] = @eng.validate()

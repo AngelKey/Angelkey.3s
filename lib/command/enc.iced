@@ -23,6 +23,5 @@ exports.Command = class Command extends CipherBase
     aliases : [ 'encrypt' ]
     epilog : 'Act like a unix filter and encrypt a local file'
 
-
 #=========================================================================
 

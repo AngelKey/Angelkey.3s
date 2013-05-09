@@ -22,11 +22,24 @@ exports.open = ({filename, write, mode, bufferSize}, cb) ->
     ret = null
     await fs.open filename, flags, mode, defer err, fd
   unless err?
+    await fs.realpath filename, defer err, realpath
+    if err?
+      log.warn "Realpath failed on file #{filename}: #{err}"
+  unless err?
     opts = { fd, bufferSize }
     f = if write then fs.createWriteStream else fs.createReadStream
-    ret = f filename, opts
+    stream = f filename, opts
 
-  cb err, ret, stat
+  cb err, { stream , stat, realpath, filename, fd } 
+
+##======================================================================
+
+exports.stdout = () -> {
+  stream : process.stdout
+  filename : "<stdout>"
+  realpath : "<stdout>"
+  fd : -1
+}
 
 ##======================================================================
 

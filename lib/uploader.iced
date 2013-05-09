@@ -4,6 +4,8 @@ path = require 'path'
 fs = require 'fs'
 {awsw} = require './aws'
 ProgressBar = require 'progress'
+log = require './log'
+{AWS} = require 'aws-sdk'
 
 #=========================================================================
 
@@ -11,8 +13,10 @@ class Uploader
 
   #--------------
 
-  constructor : (@env, @filename) ->
+  constructor : ({@base, @filename, @realpath, @stat, @instream}) ->
+    super()
     @chunksz = 1024 * 1024
+    @batcher = new Batcher @instream, @chunksz 
     @buf = new Buffer @chunksz
     @pos = 0
     @eof = false
@@ -22,69 +26,13 @@ class Uploader
 
   #--------------
 
-  can_read : -> (not @eof) and (not @err)
-
-  #--------------
-
-  read_chunk : (cb) ->
-    i = 0
-
-    start = @pos
-
-    while @can_read() and i < @chunksz
-      left = @chunksz - i
-      await fs.read @fd, @buf, i, left, @pos, defer @err, nbytes, buf
-      if @err?
-        @warn "reading @#{@pos}"
-      else if nbytes is 0
-        @eof = true
-      else
-        i += nbytes
-        @pos += nbytes
-    end = @pos
-
-    ret = if i < @chunksz then @buf[0...i]
-    else if @err then null
-    else @buf
-
-    cb ret, start, end
-
-  #--------------
-
-  open : (cb) ->
-    ok = true
-
-    await fs.stat @filename, defer @err, @stat
-
-    if @err?
-      @warn "stat"
-      ok = false
-    else if not @stat.isFile()
-      @warn "not a file!"
-      ok = false
-    else
-      @filesz = @stat.size
-
-    if ok
-      await fs.realpath @filename, defer @err, @realpath
-      if @err?
-        @warn "realpath"
-        ok = false
-
-    if ok
-      await fs.open @filename, "r", defer @err, @fd
-      if @err?
-        @warn "open"
-        ok = false
-      else
-        @pos = 0
-        @eof = false
-    cb ok
+  glacier : -> @base.aws.glacier
+  dynamo  : -> @base.aws.dynamo
 
   #--------------
 
   warn : (msg) ->
-    warn "In #{@filename}#{if @id? then ('/'+@id) else ''}: #{msg}: #{@err}"
+    log.warn "In #{@filename}#{if @id? then ('/'+@id) else ''}: #{msg}"
 
   #--------------
 
@@ -92,10 +40,13 @@ class Uploader
     params =
       vaultName : @vault
       partSize : @chunksz.toString()
-    await @glacier.initiateMultipartUpload params, defer @err, @multipart
+    await @glacier().initiateMultipartUpload params, defer err, @multipart
     @id = @multipart.uploadId if @multipart?
-    warn "New upload id: #{@id}"
-    cb not @err
+    if err?
+      warn "intiate error: #{err}"
+      ok = false
+    else ok = true
+    cb ok
 
   #--------------
 
@@ -128,7 +79,7 @@ class Uploader
         mtime : N : "#{Math.floor @stat.mtime.getTime()}"
         atime : N : "#{Date.now()}"
         glacier_id : S : @id
-    await @dynamo.putItem arg, defer err
+    await @aws.dynamo.putItem arg, defer err
     if err?
       @warn "dynamo.putItem #{JSON.stringify arg}"
       ok = false
@@ -139,11 +90,10 @@ class Uploader
   #--------------
 
   run : (cb) ->
-    await @open defer ok
+    await @init defer ok if ok
     @start_progress() if ok
     await @upload defer ok if ok
     await @index defer ok if ok
-    await fs.close @fd, defer() if @fd
     cb ok
 
   #--------------
@@ -151,32 +101,46 @@ class Uploader
   body : (cb) ->
     full_hash = AWS.util.crypto.createHash 'sha256'
     @leaves = []
+    start = 0
+    go = true
+    ret = true
 
     params = 
       vaultName : @vault
       uploadId : @id
 
-    while @can_read()
-      await @read_chunk defer chnk, start, end
+    while go
 
-      if chnk?
+      await @batcher.read defer err, eof, chnk
+      if err?
+        log.error "Error in upload: #{err}"
+        go = false
+        ret = false
+      else if eof
+        go = false
+      else
+        end = start + chnk.length
         full_hash.update chnk
         @leaves.push AWS.util.crypto.sha256 chnk
         params.range = "bytes #{start}-#{end-1}/*"
         params.body = chnk
-        await @glacier.uploadMultipartPart params, defer @err, data
+        await @glacier().uploadMultipartPart params, defer err, data
         @bar.tick chnk.length
+        if err?
+          @warn "In upload #{start}-#{end}: #{err}"
+          go = false
 
-        @warn "upload #{start}-#{end}" if @err?
+        start = end
     console.log ""
+    
     @full_hash = full_hash.digest 'hex'
 
-    cb not @err
+    cb ret
 
   #--------------
 
   finish : (cb) ->
-    @tree_hash = @glacier.buildHashTree @leaves
+    @tree_hash = @glacier().buildHashTree @leaves
 
     params = 
       vaultName : @vault
@@ -184,15 +148,14 @@ class Uploader
       archiveSize : "#{@pos}"
       checksum : @tree_hash
 
-    await @glacier.completeMultipartUpload params, defer @err, data
+    await @glacier().completeMultipartUpload params, defer err, data
 
-    cb not @err
+    if err?
+      @warn "In complete: #{err}"
+      ok = false
+    else ok = true
 
-#=========================================================================
-
-file = new File glacier, dynamo, argv.v, argv._[0]
-await file.run defer ok
-process.exit if ok then 0 else -2
+    cb ok
 
 #=========================================================================
 
