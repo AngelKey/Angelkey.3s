@@ -235,7 +235,7 @@ exports.CipherBase = class CipherBase extends Base
 
     if ok
       opened = true
-      @eng = @make_eng { @pwmgr, @input.stat }
+      @eng = @make_eng { @pwmgr, stat : @input.stat }
       await @eng.init defer ok
       if not ok
         log.error "Could not setup keys for encryption/decryption"

@@ -28,9 +28,8 @@ exports.Command = class Command extends Base
     opts = 
       aliases : [ 'upload' ]
       help : 'upload an archive to the server'
-      name : 'up'
 
-    sub = scp.addParser 'up'
+    sub = scp.addParser 'up', opts
     add_option_dict sub, @OPTS
     sub.addArgument ["file"], { nargs : 1 }
 
