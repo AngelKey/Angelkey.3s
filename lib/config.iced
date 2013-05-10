@@ -65,5 +65,7 @@ exports.Config = class Config
   email : () -> @json.email
   salt  : () -> @json.salt
   password : () -> @json.password
+  sns   : () -> @json.sns
+  sqs   : () -> @json.sqs
 
 #=========================================================================

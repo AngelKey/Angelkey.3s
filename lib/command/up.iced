@@ -1,5 +1,3 @@
-#!/usr/bin/env iced
-
 path = require 'path'
 fs = require 'fs'
 {Base} = require './base'
