@@ -5,8 +5,8 @@ fs = require 'fs'
 {awsw} = require './aws'
 ProgressBar = require 'progress'
 log = require './log'
-{AWS} = require 'aws-sdk'
-{Bather} = require './batcher'
+AWS = require 'aws-sdk'
+{Batcher} = require './batcher'
 
 #=========================================================================
 
@@ -15,7 +15,6 @@ exports.Uploader = class Uploader
   #--------------
 
   constructor : ({@base, @file}) ->
-    super()
     @chunksz = 1024 * 1024
     @batcher = new Batcher @file.stream, @chunksz 
     @buf = new Buffer @chunksz
@@ -29,6 +28,7 @@ exports.Uploader = class Uploader
 
   glacier : -> @base.aws.glacier
   dynamo  : -> @base.aws.dynamo
+  vault   : -> @base.config.vault()
 
   #--------------
 
@@ -39,12 +39,12 @@ exports.Uploader = class Uploader
 
   init : (cb) ->
     params =
-      vaultName : @vault
+      vaultName : @vault()
       partSize : @chunksz.toString()
     await @glacier().initiateMultipartUpload params, defer err, @multipart
     @id = @multipart.uploadId if @multipart?
     if err?
-      warn "intiate error: #{err}"
+      @warn "intiate error: #{err}"
       ok = false
     else ok = true
     cb ok
@@ -52,7 +52,7 @@ exports.Uploader = class Uploader
   #--------------
 
   upload : (cb) ->
-    await @init defer ok
+    ok = true
     await @body defer ok if ok
     await @finish defer ok if ok
     cb ok
@@ -65,14 +65,14 @@ exports.Uploader = class Uploader
       complete : "="
       incomplete : " "
       width : 25
-      total : @filesz
+      total : @file.stat.size
     @bar = new ProgressBar msg, opts
 
   #--------------
 
   index : (cb) -> 
     arg = 
-      TableName : @vault
+      TableName : @vault()
       Item : 
         path : S : @file.realpath 
         hash : S : @tree_hash
@@ -80,7 +80,8 @@ exports.Uploader = class Uploader
         mtime : N : "#{Math.floor @file.stat.mtime.getTime()}"
         atime : N : "#{Date.now()}"
         glacier_id : S : @id
-    await @aws.dynamo.putItem arg, defer err
+        enc : N : @file.enc.toString()
+    await @dynamo().putItem arg, defer err
     if err?
       @warn "dynamo.putItem #{JSON.stringify arg}"
       ok = false
@@ -91,6 +92,7 @@ exports.Uploader = class Uploader
   #--------------
 
   run : (cb) ->
+    ok = true
     await @init defer ok if ok
     @start_progress() if ok
     await @upload defer ok if ok
@@ -103,11 +105,13 @@ exports.Uploader = class Uploader
     full_hash = AWS.util.crypto.createHash 'sha256'
     @leaves = []
     start = 0
+    end = 0
     go = true
     ret = true
+    await process.nextTick defer()
 
     params = 
-      vaultName : @vault
+      vaultName : @vault()
       uploadId : @id
 
     while go
@@ -130,11 +134,11 @@ exports.Uploader = class Uploader
         if err?
           @warn "In upload #{start}-#{end}: #{err}"
           go = false
-
         start = end
     console.log ""
 
     @full_hash = full_hash.digest 'hex'
+    @archiveSize = end
 
     cb ret
 
@@ -144,9 +148,9 @@ exports.Uploader = class Uploader
     @tree_hash = @glacier().buildHashTree @leaves
 
     params = 
-      vaultName : @vault
+      vaultName : @vault()
       uploadId : @id
-      archiveSize : "#{@pos}"
+      archiveSize : @archiveSize.toString()
       checksum : @tree_hash
 
     await @glacier().completeMultipartUpload params, defer err, data

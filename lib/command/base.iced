@@ -67,8 +67,8 @@ exports.Base = class Base
       log.error "Cannot find config file #{@config.filename}; needed for AWS"
       ok = false
 
-    ok = @aws.init @config.aws            if ok and @need_aws()
-    ok = @_init_pwmgr()                   if ok
+    ok = @aws.init @config.aws()         if ok and @need_aws()
+    ok = @_init_pwmgr()                  if ok
     cb ok
 
   #-------------------

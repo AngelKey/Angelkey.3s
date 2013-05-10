@@ -23,7 +23,7 @@ class Trickler extends stream.Readable
 #=========================================================================
 
 exports.Batcher = class Batcher
-
+  
   #---------------
 
   constructor : (@stream, @sz) ->

@@ -7,8 +7,6 @@ log = require './log'
 
 exports.Config = class Config
 
-
-
   #-------------------
 
   constructor : () ->

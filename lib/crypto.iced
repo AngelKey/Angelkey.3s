@@ -301,6 +301,7 @@ exports.Encryptor = class Encryptor extends Transform
 
   validate : () -> [ true ]
   is_enc   : () -> true
+  version  : () -> constants.VERSION
 
   #---------------------------
 

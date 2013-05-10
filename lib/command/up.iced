@@ -9,6 +9,7 @@ ProgressBar = require 'progress'
 log = require '../log'
 {add_option_dict} = require './argparse'
 mycrypto = require '../crypto'
+{Uploader} = require '../uploader'
 
 #=========================================================================
 
@@ -38,7 +39,7 @@ exports.Command = class Command extends Base
   init : (cb) ->
     await super defer ok
     if ok
-      await @base_open_input argv.file[0], defer err, @input
+      await @base_open_input @argv.file[0], defer err, @input
       if err?
         log.error "In opening input file: #{err}"
         ok = false 
@@ -50,7 +51,7 @@ exports.Command = class Command extends Base
     await @init defer ok
 
     if ok and not @argv.no_encrypt
-      @enc = new mycrypto.Encryptor { @pwmgr, @stat }
+      @enc = new mycrypto.Encryptor { @pwmgr, stat : @input.stat }
       await @enc.init defer ok
       unless ok
         log.error "Could not setup keys for encryption"
@@ -60,7 +61,9 @@ exports.Command = class Command extends Base
 
     if ok
       ins = @input.stream
-      @input.stream = ins.pipe @enc if @enc?
+      @input.enc = if @enc? then @enc.version() else 0
+      if @enc?
+        @input.stream = ins.pipe @enc
 
       uploader = new Uploader {
         base : @
