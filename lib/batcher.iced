@@ -1,8 +1,12 @@
 
 stream = require 'stream'
 
+#=========================================================================
 
 class Trickler extends stream.Readable
+  """
+    Mainly for testing....
+  """
 
   constructor : ->
     super()
@@ -16,8 +20,11 @@ class Trickler extends stream.Readable
       @push new Buffer (i for j in [0...19]) 
     @emit 'end'
 
+#=========================================================================
 
-class Batcher
+exports.Batcher = class Batcher
+
+  #---------------
 
   constructor : (@stream, @sz) ->
     @eof = false
@@ -36,11 +43,15 @@ class Batcher
       @eof = true
       @trigger()
 
+  #---------------
+
   trigger : () ->
     if @_cb?
       t = @_cb
       @_cb = null
       t()
+
+  #---------------
 
   read : (cb) ->
     ret = null
@@ -56,11 +67,14 @@ class Batcher
 
     cb @error, eof, ret
       
-t = new Trickler()
-b = new Batcher t, 21
+#=========================================================================
 
-eof = false
-while not eof
-  await b.read defer err, eof, buf
-  console.log buf
+tester = () ->
+  t = new Trickler()
+  b = new Batcher t, 21
+
+  eof = false
+  while not eof
+    await b.read defer err, eof, buf
+    console.log buf
 

@@ -37,8 +37,9 @@ class Main
     add_option_dict @ap, Base.OPTS
 
     list = [ 
-      "enc",
+      "enc"
       "dec"
+      "up"
     ]
 
     subparsers = @ap.addSubparsers {

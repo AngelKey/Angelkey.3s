@@ -6,17 +6,18 @@ fs = require 'fs'
 ProgressBar = require 'progress'
 log = require './log'
 {AWS} = require 'aws-sdk'
+{Bather} = require './batcher'
 
 #=========================================================================
 
-class Uploader
+exports.Uploader = class Uploader
 
   #--------------
 
-  constructor : ({@base, @filename, @realpath, @stat, @instream}) ->
+  constructor : ({@base, @file}) ->
     super()
     @chunksz = 1024 * 1024
-    @batcher = new Batcher @instream, @chunksz 
+    @batcher = new Batcher @file.stream, @chunksz 
     @buf = new Buffer @chunksz
     @pos = 0
     @eof = false
@@ -32,7 +33,7 @@ class Uploader
   #--------------
 
   warn : (msg) ->
-    log.warn "In #{@filename}#{if @id? then ('/'+@id) else ''}: #{msg}"
+    log.warn "In #{@file.filename}#{if @id? then ('/'+@id) else ''}: #{msg}"
 
   #--------------
 
@@ -59,7 +60,7 @@ class Uploader
   #--------------
 
   start_progress : () ->
-    msg = " uploading [:bar] :percent <:elapseds|:etas> #{@filename} (:current/:totalb)"
+    msg = " uploading [:bar] :percent <:elapseds|:etas> #{@file.filename} (:current/:totalb)"
     opts =
       complete : "="
       incomplete : " "
@@ -73,10 +74,10 @@ class Uploader
     arg = 
       TableName : @vault
       Item : 
-        path : S : @realpath 
+        path : S : @file.realpath 
         hash : S : @tree_hash
-        ctime : N : "#{Math.floor @stat.ctime.getTime()}"
-        mtime : N : "#{Math.floor @stat.mtime.getTime()}"
+        ctime : N : "#{Math.floor @file.stat.ctime.getTime()}"
+        mtime : N : "#{Math.floor @file.stat.mtime.getTime()}"
         atime : N : "#{Date.now()}"
         glacier_id : S : @id
     await @aws.dynamo.putItem arg, defer err
@@ -132,7 +133,7 @@ class Uploader
 
         start = end
     console.log ""
-    
+
     @full_hash = full_hash.digest 'hex'
 
     cb ret
