@@ -9,22 +9,26 @@ AWS = require 'aws-sdk'
 {Batcher} = require './batcher'
 {Base} = require './awsio'
 
+
 #=========================================================================
 
-exports.Uploader = class Uploader extends Base
+exports.Downloader = class Downloader extends Base
 
   #--------------
 
-  constructor : ({@base, @file}) ->
+  constructor : ({@base, @filename}) ->
     super { @base }
     @chunksz = 1024 * 1024
-    @batcher = new Batcher @file.stream, @chunksz 
-    @buf = new Buffer @chunksz
-    @pos = 0
-    @eof = false
-    @err = null
-    @id = null
-    @bar = null
+
+  #--------------
+
+  run : (cb) ->
+    await @find_file defer ok     if ok
+    await @initiate_job defer ok  if ok
+    await @wait_for_job defer ok  if ok
+    await @download_file defer ok if ok 
+    await @finalize_file defer ok if ok
+    cb ok 
 
   #--------------
 

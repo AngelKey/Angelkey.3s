@@ -7,7 +7,7 @@ ProgressBar = require 'progress'
 log = require '../log'
 {add_option_dict} = require './argparse'
 mycrypto = require '../crypto'
-{Uploader} = require '../uploader'
+{Downloader} = require '../downloader'
 
 #=========================================================================
 
@@ -27,6 +27,13 @@ exports.Command = class Command extends Base
   #------------------------------
 
   run : (cb) ->
+    downloader = new Downloader {
+      filename : @argv.file[0]
+      base : @
+    }
+    await downloader.run defer ok 
+
+
     ok = true
     await @find_file defer ok     if ok
     await @initiate_job defer ok  if ok
@@ -36,7 +43,6 @@ exports.Command = class Command extends Base
     cb ok
 
   #------------------------------
-
 
   find_file : (cb) ->
 
