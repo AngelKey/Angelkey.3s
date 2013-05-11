@@ -14,7 +14,7 @@ exports.Uploader = class Uploader
 
   #--------------
 
-  constructor : ({@base, @file}) ->
+  constructor : ({@base, @file, @interactive}) ->
     @chunksz = 1024 * 1024
     @batcher = new Batcher @file.stream, @chunksz 
     @buf = new Buffer @chunksz
@@ -94,7 +94,7 @@ exports.Uploader = class Uploader
   run : (cb) ->
     ok = true
     await @init defer ok if ok
-    @start_progress() if ok
+    @start_progress() if ok and @interactive
     await @upload defer ok if ok
     await @index defer ok if ok
     cb ok
@@ -130,7 +130,7 @@ exports.Uploader = class Uploader
         params.range = "bytes #{start}-#{end-1}/*"
         params.body = chnk
         await @glacier().uploadMultipartPart params, defer err, data
-        @bar.tick chnk.length
+        @bar.tick chnk.length if @bar?
         if err?
           @warn "In upload #{start}-#{end}: #{err}"
           go = false

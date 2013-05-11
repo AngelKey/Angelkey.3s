@@ -52,6 +52,10 @@ exports.Base = class Base
     c : 
       alias : 'config'
       help : 'a configuration file (rather than ~/.mkb.conf)'
+    i : 
+      alias : "interactive"
+      action : "storeTrue"
+      help : "interactive mode"
 
   #-------------------
 

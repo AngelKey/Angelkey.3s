@@ -21,7 +21,6 @@ exports.Command = class Command extends Base
       help : 'download an archive from the server'
 
     sub = scp.addParser 'down', opts
-    add_option_dict sub, @OPTS
     sub.addArgument ["file"], { nargs : 1 }
 
   #------------------------------
@@ -36,7 +35,6 @@ exports.Command = class Command extends Base
     cb ok
 
   #------------------------------
-
 
   find_file : (cb) ->
 
