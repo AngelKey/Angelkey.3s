@@ -37,6 +37,9 @@ exports.Command = class Command extends Base
   #------------------------------
 
   find_file : (cb) ->
+    arg =
+      TableName : @aws.vault()
+    await @aws.dyanmo.GetItem args, defer err, res
 
 #=========================================================================
 
