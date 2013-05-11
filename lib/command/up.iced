@@ -68,7 +68,6 @@ exports.Command = class Command extends Base
       uploader = new Uploader {
         base : @
         file: @input
-        interactive : @argv.interactive
       }
       await uploader.run defer ok
       if not ok

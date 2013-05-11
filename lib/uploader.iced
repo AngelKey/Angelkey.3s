@@ -7,14 +7,16 @@ ProgressBar = require 'progress'
 log = require './log'
 AWS = require 'aws-sdk'
 {Batcher} = require './batcher'
+{Base} = require './awsio'
 
 #=========================================================================
 
-exports.Uploader = class Uploader
+exports.Uploader = class Uploader extends Base
 
   #--------------
 
-  constructor : ({@base, @file, @interactive}) ->
+  constructor : ({@base, @file}) ->
+    super { @base }
     @chunksz = 1024 * 1024
     @batcher = new Batcher @file.stream, @chunksz 
     @buf = new Buffer @chunksz
@@ -23,12 +25,6 @@ exports.Uploader = class Uploader
     @err = null
     @id = null
     @bar = null
-
-  #--------------
-
-  glacier : -> @base.aws.glacier
-  dynamo  : -> @base.aws.dynamo
-  vault   : -> @base.config.vault()
 
   #--------------
 
@@ -94,7 +90,7 @@ exports.Uploader = class Uploader
   run : (cb) ->
     ok = true
     await @init defer ok if ok
-    @start_progress() if ok and @interactive
+    @start_progress() if ok and @interactive()
     await @upload defer ok if ok
     await @index defer ok if ok
     cb ok

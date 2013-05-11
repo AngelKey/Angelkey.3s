@@ -7,7 +7,7 @@ ProgressBar = require 'progress'
 log = require '../log'
 {add_option_dict} = require './argparse'
 mycrypto = require '../crypto'
-{Uploader} = require '../uploader'
+{Downloader} = require '../downloader'
 
 #=========================================================================
 
@@ -19,27 +19,34 @@ exports.Command = class Command extends Base
     opts = 
       aliases : [ 'download' ]
       help : 'download an archive from the server'
-
-    sub = scp.addParser 'down', opts
+    name = 'down'
+    sub = scp.addParser name, opts
     sub.addArgument ["file"], { nargs : 1 }
+    return opts.aliases.concat [ name ]
 
   #------------------------------
 
-  run : (cb) ->
-    ok = true
-    await @find_file defer ok     if ok
-    await @initiate_job defer ok  if ok
-    await @wait_for_job defer ok  if ok
-    await @download_file defer ok if ok 
-    await @finalize_file defer ok if ok
+  init : (cb) ->
+    await super defer ok
     cb ok
 
   #------------------------------
 
-  find_file : (cb) ->
-    arg =
-      TableName : @aws.vault()
-    await @aws.dyanmo.GetItem args, defer err, res
+  run : (cb) ->
+    console.log "A"
+    await @init defer ok
+
+    if ok 
+      downloader = new Downloader {
+        filename : @argv.file[0]
+        base : @
+      }
+      console.log "B"
+      await downloader.run defer ok 
+      console.log "C"
+    cb ok
+
+  #------------------------------
 
 #=========================================================================
 

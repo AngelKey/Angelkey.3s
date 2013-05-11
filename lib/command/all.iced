@@ -40,6 +40,7 @@ class Main
       "enc"
       "dec"
       "up"
+      "down"
     ]
 
     subparsers = @ap.addSubparsers {
