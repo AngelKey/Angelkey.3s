@@ -78,7 +78,7 @@ exports.PasswordManager = class PasswordManager
 
   get_password : (is_new, cb) ->
     if not @_pw?
-      if not (pw = @opts.password)? and not @opts.no_prompt
+      if not (pw = @opts.password)? and @opts.interactive
         await @prompt_for_pw is_new, defer pw
       @_pw = pw
     cb @_pw

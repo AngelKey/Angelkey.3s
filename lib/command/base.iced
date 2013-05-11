@@ -45,10 +45,6 @@ exports.Base = class Base
     p : 
       alias : 'password'
       help : 'password used for encryption / decryption'
-    P : 
-      alias : 'no-prompt'
-      action : 'storeTrue',
-      help : "Don't prompt for a PW if we were going to"
     c : 
       alias : 'config'
       help : 'a configuration file (rather than ~/.mkb.conf)'
@@ -79,9 +75,9 @@ exports.Base = class Base
 
   _init_pwmgr : () ->
     pwopts =
-      password   : @password()
-      no_prompt  : @argv.no_prompt
-      salt       : @salt_or_email()
+      password    : @password()
+      salt        : @salt_or_email()
+      interactive : @argv.interactive
 
     @pwmgr.init pwopts
 
@@ -229,6 +225,8 @@ exports.CipherBase = class CipherBase extends Base
 
     # There's an optional input filename, since stdin can work too
     sub.addArgument ["file"], { nargs : 1 } 
+
+    return scd.aliases.concat [ name ]
 
   #-----------------
 

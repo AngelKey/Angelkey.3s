@@ -52,8 +52,9 @@ class Main
     for m in list
       mod = require "./#{m}"
       obj = new mod.Command()
-      obj.add_subcommand_parser subparsers
-      @commands[m] = obj
+      names = obj.add_subcommand_parser subparsers
+      for n in names
+        @commands[n] = obj
 
     true
 
@@ -62,7 +63,10 @@ class Main
   parse_args : () ->
     argv = @ap.parseArgs process.argv[2...]
     cmd = @commands[argv.subcommand_name]
-    cmd.set_argv argv
+    if not cmd?
+      log.error "Subcommand not found: #{argv.subcommand_name}"
+    else
+      cmd.set_argv argv
     cmd
 
   #---------------------------------

@@ -83,7 +83,7 @@ exports.Uploader = class Uploader
         enc : N : @file.enc.toString()
     await @dynamo().putItem arg, defer err
     if err?
-      @warn "dynamo.putItem #{JSON.stringify arg}"
+      @warn "dynamo.putItem #{JSON.stringify arg}: #{err}"
       ok = false
     else
       ok = true
