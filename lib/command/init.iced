@@ -148,35 +148,23 @@ exports.Command = class Command extends Base
       log.info "Reponse from SQS.createQueue: #{JSON.stringify res}"
       @sqs = @aws.new_resource { url : res.QueueUrl }
 
-    # Now fetch the attributes on this thing that we need access
-    # to or eventually need to twiddle
-    policy = null
-    if ok
-      arg = 
-        QueueUrl : @sqs.url
-        AttributeNames : [ 'Policy', 'QueueArn' ] 
-      await @aws.sqs.getQueueAttributes arg, defer err, res
-      if err?
-        ok = false
-        log.error "Error getting SQS attributes: #{err}"
-      else
-        log.info "Response from getQueueAttributes: #{JSON.stringify res}"
-        policy = res.Attributes.Policy
-        @sqs.arn = res.Attributes.QueueArn
-
     # Allow the SNS service to write to this...
-    if ok and policy?
-      new_statement = 
-        Effect : "Allow"
-        Principal : AWS : "*"
-        Action : "SQS:SendMessage"
-        Resource : @sqs.arn
-        Condition : ArnEquals : "aws:SourceArn" : @sns.arn
-      policy.Statement.push new_statement
+    if ok
+      policy = 
+        Statement: [{
+          Effect : "Allow"
+          Principal : AWS : "*"
+          Action : "SQS:SendMessage"
+          Resource : @sqs.arn
+          Condition : ArnEquals : "aws:SourceArn" : @sns.arn
+        }]
       arg = 
         QueueUrl : @sqs.url
-        Policy : policy
-      await @aws.sqs.setQueueAttribute arg, defer err, res
+        Attributes:
+          Policy : JSON.stringify policy
+      console.log "setQAttrs: "
+      console.log arg
+      await @aws.sqs.setQueueAttributes arg, defer err, res
       if err?
         log.error "Error setting Queue attributes with #{JSON.stringify arg}: #{err}"
         ok = false
