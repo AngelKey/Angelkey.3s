@@ -187,7 +187,7 @@ exports.Command = class Command extends Base
     for v in svcs when ok
       await @grant v, defer ok
     if ok
-      log.info "+> Granted permissions to IAM #{@accessKeyId}"
+      log.info "+> Granted permissions to IAM #{@config.aws().accessKeyId}"
     cb ok 
 
   #------------------------------
