@@ -41,6 +41,7 @@ class Main
       "dec"
       "up"
       "down"
+      "init"
     ]
 
     subparsers = @ap.addSubparsers {

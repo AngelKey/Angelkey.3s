@@ -11,6 +11,8 @@ exports.Base = class Base
 
   glacier : -> @base.aws.glacier
   dynamo  : -> @base.aws.dynamo
+  simpledb : -> @base.aws.simpledb
+  iam     : -> @base.aws.iam
   vault   : -> @base.config.vault()
   interactive : -> @base.argv.interactive
 

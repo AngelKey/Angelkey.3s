@@ -11,6 +11,7 @@ exports.Config = class Config
 
   constructor : () ->
     @json = null
+    @loaded = false
 
   #-------------------
 
@@ -25,6 +26,17 @@ exports.Config = class Config
     @init file
     await fs.exists @filename, defer @found
     cb @found
+
+  #-------------------
+
+  set : (key, val) ->
+    parts = key.split "."
+    @json = {} unless @json?
+    d = @json
+    for p in parts[0...(parts.length-1)]
+      d[p] = {} unless d[p]?
+      d = d[p]
+    d[parts[parts.length-1]] = val
 
   #-------------------
 

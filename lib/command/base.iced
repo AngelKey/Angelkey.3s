@@ -60,12 +60,13 @@ exports.Base = class Base
   #-------------------
 
   init : (cb) ->
-    await @config.find @argv.config, defer fc
-    if fc 
-      await @config.load defer ok
-    else if @need_aws()
-      log.error "Cannot find config file #{@config.filename}; needed for AWS"
-      ok = false
+    unless @config.loaded
+      await @config.find @argv.config, defer fc
+      if fc  
+        await @config.load defer ok
+      else if @need_aws()
+        log.error "cannot find config file #{@config.filename}; needed for aws"
+        ok = false
 
     ok = @aws.init @config.aws()         if ok and @need_aws()
     ok = @_init_pwmgr()                  if ok

@@ -2,11 +2,7 @@
 
 path = require 'path'
 fs = require 'fs'
-{awsw} = require './aws'
-ProgressBar = require 'progress'
 log = require './log'
-AWS = require 'aws-sdk'
-{Batcher} = require './batcher'
 {Base} = require './awsio'
 
 
