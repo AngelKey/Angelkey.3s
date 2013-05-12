@@ -151,7 +151,10 @@ exports.Command = class Command extends Base
     # Allow the SNS service to write to this...
     if ok
       policy = 
+        Version : "2008-10-17"
+        Id : "@{sqs.arn}/SQSDefaultPolicy"
         Statement: [{
+          Sid : "Stmt#{Date.now()}"
           Effect : "Allow"
           Principal : AWS : "*"
           Action : "SQS:SendMessage"
@@ -173,6 +176,7 @@ exports.Command = class Command extends Base
     if ok?
       read_policy =
         Statement : [{
+          Sid : "Stmt#{Date.now()}"
           Action : [ "sqs:*" ]
           Effect : "Allow"
           Resource : [ @sqs.arn ]
