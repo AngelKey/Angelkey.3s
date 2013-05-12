@@ -195,13 +195,48 @@ exports.Command = class Command extends Base
 
   #------------------------------
 
+  make_glacier : (cb) ->
+    arg = 
+      vaultName : @name
+    await @aws.glacier.createVault arg, defer err, res
+    if err?
+      log.error "Error creating vault #{JSON.stringify arg}: #{err}"
+      ok = false
+    else
+      ok = true
+      log.info "createVault returned: #{JSON.stringify res}"
+      lparts = res.location.split '/'
+      aparts = [ 'arn', 'aws', 'glacier', @config.aws().region, lparts[1] ]
+      aparts.push lparts[2...].join '/'
+      arn = aparts.join ":"
+      @vault = @aws.new_resource { arn }
+      console.log @vault
+    cb ok
+
+  #------------------------------
+
+  make_simpledb : (cb) ->
+    arg = 
+      DomainName : @name
+    await @aws.simpledb.createDomain arg, defer err, res
+    if err?
+      log.error "Error creatingDomain #{JSON.stringify arg}: #{err}"
+      ok = false
+    else
+      ok = true
+      log.info "createDomain returned: #{JSON.stringify res}"
+    cb ok
+
+  #------------------------------
+
   run : (cb) ->
     await @init defer ok
     await @make_iam_user defer ok   if ok
     await @make_sns      defer ok   if ok
     await @make_sqs      defer ok   if ok
-    #await @make_glaicer  defer ok   if ok
-    #await @init_simpledb defer ok   if ok
+    await @make_glacier  defer ok   if ok
+    await @make_simpledb defer ok   if ok
+    #await @grant_permissions defer ok if ok
     cb ok
 
   #------------------------------

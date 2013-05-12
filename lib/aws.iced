@@ -22,7 +22,7 @@ exports.AwsWrapper = class AwsWrapper
 
   constructor : () ->
 
-  init : (config) ->
+  init : (@config) ->
     AWS.config.update config
     console.log "config update with -->"
     console.log config
