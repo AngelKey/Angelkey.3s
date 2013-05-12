@@ -14,7 +14,7 @@ exports.Command = class Command extends Base
   OPTS : 
     o :
       alias : 'output'
-      help : 'the output config file to write (defaults to ~/.mkb.conf'
+      help : 'the output config file to write (defaults to ~/.mkb.conf)'
     A :
       alias : 'access-key-id'
       help : 'the accessKeyId for an admin AWS user'
@@ -92,14 +92,22 @@ exports.Command = class Command extends Base
 
   #------------------------------
 
+  check_config : (cb) ->
+    await @config.find @argv.output, defer found
+    if found
+      log.error "Config file #{@config.filename} exists; refusing to overwrite"
+    cb (not found)
+
+  #------------------------------
+
   init : (cb) ->
-    console.log "A #{ok}"
-    await @load_config defer ok
-    console.log "B #{ok}"
+    ok = true
+    await @check_config defer ok
+    await @load_config defer ok if ok
     await super defer ok if ok
-    console.log "C #{ok}"
-    @vault = @config.vault()
-    @name = "mkp-#{@vault}"
+    if ok
+      @vault = @config.vault()
+      @name = "mkp-#{@vault}"
     cb ok
 
   #--------------
@@ -129,8 +137,8 @@ exports.Command = class Command extends Base
       log.error "Error making notification queue: #{err}"
       ok = false
     else
-      log.info "Response from SNS.createTopic: #{JSON.stringify res}"
       @sns = @aws.new_resource { arn : res.TopicArn }
+      log.info "+> Created SNS topic #{@sns.toString()}"
     cb ok
 
   #--------------
@@ -144,8 +152,8 @@ exports.Command = class Command extends Base
       ok = false
       log.error "Error creating queue #{@name}: #{err}"
     else
-      log.info "Reponse from SQS.createQueue: #{JSON.stringify res}"
       @sqs = @aws.new_resource { url : res.QueueUrl }
+      log.info "+> Created SQS queue #{@sqs.toString()}"
 
     # Allow the SNS service to write to this...
     if ok
@@ -164,8 +172,6 @@ exports.Command = class Command extends Base
         QueueUrl : @sqs.url
         Attributes:
           Policy : JSON.stringify policy
-      console.log "setQAttrs: "
-      console.log arg
       await @aws.sqs.setQueueAttributes arg, defer err, res
       if err?
         log.error "Error setting Queue attributes with #{JSON.stringify arg}: #{err}"
@@ -180,6 +186,8 @@ exports.Command = class Command extends Base
     ok = true
     for v in svcs when ok
       await @grant v, defer ok
+    if ok
+      log.info "+> Granted permissions to IAM #{@accessKeyId}"
     cb ok 
 
   #------------------------------
@@ -216,13 +224,13 @@ exports.Command = class Command extends Base
       ok = false
     else
       ok = true
-      log.info "createVault returned: #{JSON.stringify res}"
       lparts = res.location.split '/'
       @account_id = lparts[1]
       aparts = [ 'arn', 'aws', 'glacier', @config.aws().region, lparts[1] ]
       aparts.push lparts[2...].join '/'
       arn = aparts.join ":"
       @glacier = @aws.new_resource { arn }
+      log.info "+> Created Glacier Vault #{@glacier.toString()}"
     cb ok
 
   #------------------------------
@@ -236,11 +244,21 @@ exports.Command = class Command extends Base
       ok = false
     else
       ok = true
-      log.info "createDomain returned: #{JSON.stringify res}"
       aparts = [ 'arn', 'aws', 'sdb', @config.aws().region, @account_id,
                  "domain/#{@name}" ]
       arn = aparts.join ":"
       @sdb = @aws.new_resource { arn }
+      log.info "+> Created SimpleDB domain #{@sdb.toString()}"
+    cb ok
+
+  #------------------------------
+
+  write_config : (cb) ->
+    await @config.write defer ok
+    if not ok
+      log.error "Bailing out, since can't write out config file"
+    else
+      log.info "+> Writing out config file: #{@config.filename}"
     cb ok
 
   #------------------------------
@@ -248,6 +266,7 @@ exports.Command = class Command extends Base
   run : (cb) ->
     await @init defer ok
     await @make_iam_user defer ok   if ok
+    await @write_config  defer ok if ok
     await @make_sns      defer ok   if ok
     await @make_sqs      defer ok   if ok
     await @make_glacier  defer ok   if ok

@@ -2,6 +2,7 @@
 path = require 'path'
 fs = require 'fs'
 log = require './log'
+util = require 'util'
 
 #=========================================================================
 
@@ -26,6 +27,17 @@ exports.Config = class Config
     @init file
     await fs.exists @filename, defer @found
     cb @found
+
+  #-------------------
+
+  write : (cb) ->
+    dat = util.inspect @json, { depth : null }
+    await fs.writeFile @filename, dat, { mode : 0o600 }, defer err
+    ok = true
+    if err?
+      log.error "Error writing to #{@filename}: #{err}"
+      ok = false
+    cb ok
 
   #-------------------
 

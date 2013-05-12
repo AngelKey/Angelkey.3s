@@ -16,6 +16,8 @@ exports.Resource = class Resource
     aparts = [ 'arn', 'aws'].concat( host[0...2]).concat(path[1...3])
     aparts.join ':'
 
+  toString : () -> @arn
+
 #=========================================================================
 
 exports.AwsWrapper = class AwsWrapper
@@ -24,8 +26,6 @@ exports.AwsWrapper = class AwsWrapper
 
   init : (@config) ->
     AWS.config.update config
-    console.log "config update with -->"
-    console.log config
     @glacier = new AWS.Glacier()
     @dynamo = new AWS.DynamoDB { apiVersion : '2012-08-10' }
     @simpledb = new AWS.SimpleDB { apiVersion : '2009-04-15' }
