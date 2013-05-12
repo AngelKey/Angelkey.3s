@@ -9,8 +9,7 @@ exports.Initializer = class Initializer
 
   #--------------
 
-  constructor : ({@aws}) ->
-    @name = "mkp-#{@vault()}"
+  constructor : ({@aws, @vault}) ->
 
   #--------------
 
@@ -118,12 +117,7 @@ exports.Initializer = class Initializer
 
   run : (cb) ->
     ok = true
-    await @make_iam_user defer ok   if ok
-    await @make_sns      defer ok   if ok
-    await @make_sqs      defer ok   if ok
-    await @make_glaicer  defer ok   if ok
-    await @init_simpledb defer ok   if ok
-    cb ok 
+
 
   #--------------
 

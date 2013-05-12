@@ -70,7 +70,7 @@ exports.Command = class Command extends Base
     },{
       name : 'secret_access_key'
       desc : 'secret access key'
-      key : 'aws.secretKeyId'
+      key : 'aws.secretAccessKey'
     }]
 
     for d in fields
@@ -94,17 +94,122 @@ exports.Command = class Command extends Base
   #------------------------------
 
   init : (cb) ->
+    console.log "A #{ok}"
     await @load_config defer ok
+    console.log "B #{ok}"
     await super defer ok if ok
+    console.log "C #{ok}"
+    @vault = @config.vault()
+    @name = "mkp-#{@vault}"
+    cb ok
+
+  #--------------
+
+  make_iam_user : (cb) ->
+    arg = { UserName : @name }
+    await @aws.iam.createUser arg, defer err
+    ok = true
+    if err?
+      ok = false
+      log.error "Error in making user '#{@name}': #{err}"
+    if ok
+      await @aws.iam.createAccessKey arg, defer err, res
+      if err?
+        ok = false
+        log.error "Error in creating access key: #{err}"
+      else
+        {@AccessKeyId, @SecretAccessKey} = res
+    cb ok
+
+  #--------------
+
+  make_sns : (cb) -> 
+    await @aws.sns.createTopic { Name : @name }, defer err, res
+    ok = true
+    if err?
+      log.error "Error making notification queue: #{err}"
+      ok = false
+    else
+      log.info "Response from SNS.createTopic: #{JSON.stringify res}"
+      @sns = @aws.new_resource { arn : res.TopicArn }
+    cb ok
+
+  #--------------
+
+  make_sqs : (cb) ->
+
+    # First make the queue
+    await @aws.sqs.createQueue { QueueName : @name }, defer err, res
+    ok = true
+    if err?
+      ok = false
+      log.error "Error creating queue #{@name}: #{err}"
+    else
+      log.info "Reponse from SQS.createQueue: #{JSON.stringify res}"
+      @sqs = @aws.new_resource { url : res.QueueUrl }
+
+    # Now fetch the attributes on this thing that we need access
+    # to or eventually need to twiddle
+    policy = null
+    if ok
+      arg = 
+        QueueUrl : @sqs.url
+        AttributeNames : [ 'Policy', 'QueueArn' ] 
+      await @aws.sqs.getQueueAttributes arg, defer err, res
+      if err?
+        ok = false
+        log.error "Error getting SQS attributes: #{err}"
+      else
+        log.info "Response from getQueueAttributes: #{JSON.stringify res}"
+        policy = res.Attributes.Policy
+        @sqs.arn = res.Attributes.QueueArn
+
+    # Allow the SNS service to write to this...
+    if ok and policy?
+      new_statement = 
+        Effect : "Allow"
+        Principal : AWS : "*"
+        Action : "SQS:SendMessage"
+        Resource : @sqs.arn
+        Condition : ArnEquals : "aws:SourceArn" : @sns.arn
+      policy.Statement.push new_statement
+      arg = 
+        QueueUrl : @sqs.url
+        Policy : policy
+      await @aws.sqs.setQueueAttribute arg, defer err, res
+      if err?
+        log.error "Error setting Queue attributes with #{JSON.stringify arg}: #{err}"
+        ok = false
+
+    # Allow our user to manipulate the Queue however it pleases..
+    if ok?
+      read_policy =
+        Statement : [{
+          Action : [ "sqs:*" ]
+          Effect : "Allow"
+          Resource : [ @sqs.arn ]
+        }]
+      policy_name = "#{@name}-sqs-read-policy"
+      arg =
+        UserName : @name
+        PolicyName : policy_name
+        PolicyDocument : JSON.stringify read_policy
+      await @aws.iam.putUserPolicy arg, defer err, data
+      if err?
+        log.error "Error setting read policy on queue #{JSON.stringify arg}: #{err}"
+        ok = false
+
     cb ok
 
   #------------------------------
 
   run : (cb) ->
     await @init defer ok
-    if ok 
-      i = new Initializer { base : @ }
-      await i.run defer ok 
+    await @make_iam_user defer ok   if ok
+    await @make_sns      defer ok   if ok
+    await @make_sqs      defer ok   if ok
+    #await @make_glaicer  defer ok   if ok
+    #await @init_simpledb defer ok   if ok
     cb ok
 
   #------------------------------

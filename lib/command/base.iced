@@ -60,7 +60,12 @@ exports.Base = class Base
   #-------------------
 
   init : (cb) ->
-    unless @config.loaded
+
+    if @config.loaded
+      # The 'init' subcommand will load in an init object that it 
+      # invents out of thin air, so no need to read from the FS
+      ok = true
+    else
       await @config.find @argv.config, defer fc
       if fc  
         await @config.load defer ok
