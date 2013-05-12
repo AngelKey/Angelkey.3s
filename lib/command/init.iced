@@ -77,7 +77,6 @@ exports.Command = class Command extends Base
       await @load_config_value d, defer ok 
 
     @config.loaded = ok
-    console.log @config.json
 
     cb ok
 
@@ -172,25 +171,38 @@ exports.Command = class Command extends Base
         log.error "Error setting Queue attributes with #{JSON.stringify arg}: #{err}"
         ok = false
 
-    # Allow our user to manipulate the Queue however it pleases..
-    if ok?
-      read_policy =
-        Statement : [{
-          Sid : "Stmt#{Date.now()}"
-          Action : [ "sqs:*" ]
-          Effect : "Allow"
-          Resource : [ @sqs.arn ]
-        }]
-      policy_name = "#{@name}-sqs-read-policy"
-      arg =
-        UserName : @name
-        PolicyName : policy_name
-        PolicyDocument : JSON.stringify read_policy
-      await @aws.iam.putUserPolicy arg, defer err, data
-      if err?
-        log.error "Error setting read policy on queue #{JSON.stringify arg}: #{err}"
-        ok = false
+    cb ok
 
+  #------------------------------
+
+  grant_permissions : (cb) ->
+    svcs = [ 'sqs', 'glacier', 'sdb' ]
+    ok = true
+    for v in svcs when ok
+      await @grant v, defer ok
+    cb ok 
+
+  #------------------------------
+
+  grant : (svc, cb) ->
+    policy =
+      Statement : [{
+        Sid : "Stmt#{Date.now()}#{svc}"
+        Action : [ "#{svc}:*" ]
+        Effect : "Allow"
+        Resource : [ @[svc].arn ]
+      }]
+    policy_name = "#{@name}-#{svc}-access-policy"
+    arg =
+      UserName : @name
+      PolicyName : policy_name
+      PolicyDocument : JSON.stringify policy
+    await @aws.iam.putUserPolicy arg, defer err, data
+    if err?
+      log.error "Error setting policy #{JSON.stringify arg}: #{err}"
+      ok = false
+    else
+      ok = true
     cb ok
 
   #------------------------------
@@ -206,11 +218,11 @@ exports.Command = class Command extends Base
       ok = true
       log.info "createVault returned: #{JSON.stringify res}"
       lparts = res.location.split '/'
+      @account_id = lparts[1]
       aparts = [ 'arn', 'aws', 'glacier', @config.aws().region, lparts[1] ]
       aparts.push lparts[2...].join '/'
       arn = aparts.join ":"
-      @vault = @aws.new_resource { arn }
-      console.log @vault
+      @glacier = @aws.new_resource { arn }
     cb ok
 
   #------------------------------
@@ -225,6 +237,10 @@ exports.Command = class Command extends Base
     else
       ok = true
       log.info "createDomain returned: #{JSON.stringify res}"
+      aparts = [ 'arn', 'aws', 'sdb', @config.aws().region, @account_id,
+                 "domain/#{@name}" ]
+      arn = aparts.join ":"
+      @sdb = @aws.new_resource { arn }
     cb ok
 
   #------------------------------
@@ -236,7 +252,7 @@ exports.Command = class Command extends Base
     await @make_sqs      defer ok   if ok
     await @make_glacier  defer ok   if ok
     await @make_simpledb defer ok   if ok
-    #await @grant_permissions defer ok if ok
+    await @grant_permissions defer ok if ok
     cb ok
 
   #------------------------------
