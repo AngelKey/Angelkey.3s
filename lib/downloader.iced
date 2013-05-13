@@ -36,8 +36,22 @@ exports.Downloader = class Downloader extends Base
   #--------------
 
   initiate_job : (cb) -> 
-    arg = null
-    cb true
+    arg = 
+      vaultName : @vault()
+      jobParameters :
+        Type : "archive-retrieval"
+        ArchiveId : @md.glacier_id
+        Description : "mkb down #{@filename}"
+        SNSTopic : @base.config.arns().sns
+    await @glacier().initiateJob arg, defer err, res
+    ok = true
+    if err?
+      @warn "Initiate retrieval job failed: #{err}"
+      ok = false
+    else
+      console.log "job started"
+      console.log res
+    cb ok
 
   #--------------
 
@@ -68,8 +82,11 @@ exports.Downloader = class Downloader extends Base
           if Name in [ "ctime", "mtime", "atime", "enc" ]
             Value = parseInt Value, 10
           d[Name] = Value
-        if not @md? or @md.ctime < d.ctime
+
+        if not @md? or (@md.ctime < d.ctime) or 
+              (@md.ctime is d.ctime and @md.atime < d.atime)
           @md = new MetaData d
+          
       if (n = data.Items.length) > 1
         log.info "Found #{n} items for '#{@filename}'; taking newest"
 

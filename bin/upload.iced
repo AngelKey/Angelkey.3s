@@ -44,7 +44,8 @@ class File
     @pos = 0
     @eof = false
     @err = null
-    @id = null
+    @upload_id = null
+    @archive_id = null
     @bar = null
 
   #--------------
@@ -111,7 +112,7 @@ class File
   #--------------
 
   warn : (msg) ->
-    warn "In #{@filename}#{if @id? then ('/'+@id) else ''}: #{msg}: #{@err}"
+    warn "In #{@filename}#{if @upload_id? then ('/'+@upload_id) else ''}: #{msg}: #{@err}"
 
   #--------------
 
@@ -120,8 +121,7 @@ class File
       vaultName : @vault
       partSize : @chunksz.toString()
     await @glacier.initiateMultipartUpload params, defer @err, @multipart
-    @id = @multipart.uploadId if @multipart?
-    warn "New upload id: #{@id}"
+    @upload_id = @multipart.uploadId if @multipart?
     cb not @err
 
   #--------------
@@ -154,7 +154,7 @@ class File
         ctime : N : "#{Math.floor @stat.ctime.getTime()}"
         mtime : N : "#{Math.floor @stat.mtime.getTime()}"
         atime : N : "#{Date.now()}"
-        glacier_id : S : @id
+        glacier_id : S : @archive_id
     await @dynamo.putItem arg, defer err
     if err?
       @warn "dynamo.putItem #{JSON.stringify arg}"
@@ -181,7 +181,7 @@ class File
 
     params = 
       vaultName : @vault
-      uploadId : @id
+      uploadId : @upload_id
 
     while @can_read()
       await @read_chunk defer chnk, start, end
@@ -207,11 +207,13 @@ class File
 
     params = 
       vaultName : @vault
-      uploadId : @id
+      uploadId : @upload_id
       archiveSize : "#{@pos}"
       checksum : @tree_hash
 
     await @glacier.completeMultipartUpload params, defer @err, data
+    if data?
+      @archive_id = @data.archiveId
 
     cb not @err
 

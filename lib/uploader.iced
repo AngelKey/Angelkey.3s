@@ -23,13 +23,14 @@ exports.Uploader = class Uploader extends Base
     @pos = 0
     @eof = false
     @err = null
-    @id = null
+    @upid = null
+    @archive_id = null
     @bar = null
 
   #--------------
 
   warn : (msg) ->
-    log.warn "In #{@file.filename}#{if @id? then ('/'+@id) else ''}: #{msg}"
+    log.warn "In #{@file.filename}#{if @upid? then ('/'+@upid) else ''}: #{msg}"
 
   #--------------
 
@@ -38,7 +39,7 @@ exports.Uploader = class Uploader extends Base
       vaultName : @vault()
       partSize : @chunksz.toString()
     await @glacier().initiateMultipartUpload params, defer err, @multipart
-    @id = @multipart.uploadId if @multipart?
+    @upid = @multipart.uploadId if @multipart?
     if err?
       @warn "intiate error: #{err}"
       ok = false
@@ -74,7 +75,6 @@ exports.Uploader = class Uploader extends Base
     attributes = 
       path : @file.realpath
       hash : @tree_hash
-      glacier_id : @id
       atime : Date.now()
       ctime : ctime
       mtime : mtime
@@ -82,7 +82,7 @@ exports.Uploader = class Uploader extends Base
     obj_to_list = (d) -> { Name : k, Value : "#{v}", Replace : true } for k,v of d
     arg = 
       DomainName : @vault()
-      ItemName : @id
+      ItemName : @archive_id
       Attributes : obj_to_list attributes
     await @sdb().putAttributes arg, defer err
     if err?
@@ -115,7 +115,7 @@ exports.Uploader = class Uploader extends Base
 
     params = 
       vaultName : @vault()
-      uploadId : @id
+      uploadId : @upid
 
     @bar.tick 1 if @bar?
 
@@ -154,7 +154,7 @@ exports.Uploader = class Uploader extends Base
 
     params = 
       vaultName : @vault()
-      uploadId : @id
+      uploadId : @upid
       archiveSize : @archiveSize.toString()
       checksum : @tree_hash
 
@@ -163,7 +163,9 @@ exports.Uploader = class Uploader extends Base
     if err?
       @warn "In complete: #{err}"
       ok = false
-    else ok = true
+    else 
+      @archive_id = data.archiveId
+      ok = true
 
     cb ok
 
