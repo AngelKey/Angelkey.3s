@@ -10,12 +10,22 @@ exports.Command = class Command extends Base
 
   #------------------------------
 
+  OPTS :
+    W :
+      alias : "no-wait"
+      action : "storeTrue"
+      help : "don't wait, just start the job, and make the same call to check back later"
+
+  #------------------------------
+
+
   add_subcommand_parser : (scp) ->
     opts = 
       aliases : [ 'download' ]
       help : 'download an archive from the server'
     name = 'down'
     sub = scp.addParser name, opts
+    add_option_dict sub, @OPTS
     sub.addArgument ["file"], { nargs : 1 }
     return opts.aliases.concat [ name ]
 

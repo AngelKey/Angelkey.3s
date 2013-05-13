@@ -9,7 +9,7 @@ util = require 'util'
 
 #=========================================================================
 
-class Upload
+class MetaData
   constructor : ({@glacier_id, @mtime, @ctime, @atime, @hash, @path, @enc}) -> 
 
 #=========================================================================
@@ -35,7 +35,12 @@ exports.Downloader = class Downloader extends Base
 
   #--------------
 
-  initiate_job : (cb) -> cb true
+  initiate_job : (cb) -> 
+    arg = null
+    cb true
+
+  #--------------
+
   wait_for_job : (cb) -> cb true
   download_file : (cb) -> cb true
   finalize_file : (cb) -> cb true
@@ -49,9 +54,12 @@ exports.Downloader = class Downloader extends Base
       ConsistentRead : false
     await @sdb().select arg, defer err, data
     ok = true
-    ret = null
+    @md = null
     if err?
       @warn "simpledb.select #{JSON.stringify arg}: #{err}"
+      ok = false
+    else if not data?.Items?.length
+      @warn "file not found"
       ok = false
     else
       for i in data.Items
@@ -60,15 +68,12 @@ exports.Downloader = class Downloader extends Base
           if Name in [ "ctime", "mtime", "atime", "enc" ]
             Value = parseInt Value, 10
           d[Name] = Value
-        if not ret? or ret.ctime < d.ctime
-          ret = new Upload d
+        if not @md? or @md.ctime < d.ctime
+          @md = new MetaData d
       if (n = data.Items.length) > 1
         log.info "Found #{n} items for '#{@filename}'; taking newest"
 
-      console.log ret
-      console.log util.inspect data, { depth : null }
-
-    cb ok, ret
+    cb ok
 
   #--------------
 

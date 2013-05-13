@@ -273,6 +273,13 @@ exports.Command = class Command extends Base
 
   #------------------------------
 
+  append_arns_to_config : (cb) ->
+    for svc in [ "sns", "sqs", "glacier", "sdb" ]
+      @config.set "arns.#{svc}", @[svc].arn.toString()
+    cb true
+
+  #------------------------------
+
   run : (cb) ->
     await @init defer ok
     await @make_iam_user defer ok   if ok
@@ -282,6 +289,8 @@ exports.Command = class Command extends Base
     await @make_glacier  defer ok   if ok
     await @make_simpledb defer ok   if ok
     await @grant_permissions defer ok if ok
+    await @append_arns_to_config defer ok if ok
+    await @write_config  defer ok if ok
     cb ok
 
   #------------------------------
