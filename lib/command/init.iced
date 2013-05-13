@@ -42,9 +42,11 @@ exports.Command = class Command extends Base
 
   #------------------------------
 
-  load_config_value : ({name, desc, key}, cb) ->
+  load_config_value : ({name, desc, key, val_prefix}, cb) ->
     await @get_opt_or_prompt {name, desc}, defer err, val
-    @config.set key, val if val?
+    if val?
+      val = [ val_prefix, val ].join '' if val_prefix?
+      @config.set key, val
     cb not err?
 
   #------------------------------
@@ -63,6 +65,7 @@ exports.Command = class Command extends Base
       name : 'vault'
       desc : 'vault name'
       key : 'vault'
+      val_prefix : "mkb-"
     },{
       name : 'access_key_id'
       desc : 'access key id'
@@ -107,7 +110,7 @@ exports.Command = class Command extends Base
     await super defer ok if ok
     if ok
       @vault = @config.vault()
-      @name = "mkp-#{@vault}"
+      @name = @vault
     cb ok
 
   #--------------
@@ -238,7 +241,7 @@ exports.Command = class Command extends Base
   make_simpledb : (cb) ->
     arg = 
       DomainName : @name
-    await @aws.simpledb.createDomain arg, defer err, res
+    await @aws.sdb.createDomain arg, defer err, res
     if err?
       log.error "Error creatingDomain #{JSON.stringify arg}: #{err}"
       ok = false

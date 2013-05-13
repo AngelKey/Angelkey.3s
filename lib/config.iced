@@ -31,7 +31,7 @@ exports.Config = class Config
   #-------------------
 
   write : (cb) ->
-    dat = util.inspect @json, { depth : null }
+    dat = JSON.stringify @json, null, "    "
     await fs.writeFile @filename, dat, { mode : 0o600 }, defer err
     ok = true
     if err?

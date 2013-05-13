@@ -63,23 +63,30 @@ exports.Uploader = class Uploader extends Base
       width : 25
       total : @file.stat.size
     @bar = new ProgressBar msg, opts
+    @bar.tick 0
 
   #--------------
 
   index : (cb) -> 
+    # The primary key is the realpath + the modification time, in case
+    # we want to store different versions of the file....
+    mtime = Math.floor @file.stat.mtime.getTime()
+    ctime = Math.floor @file.stat.ctime.getTime()
+    name = "#{@file.realpath}|#{mtime}"
+    attributes = 
+      hash : @tree_hash
+      glacier_id : @id
+      atime : Date.now()
+      ctime : ctime
+      enc : @file.enc.toString()
+    obj_to_list = (d) -> { name : k, value : v } for k,v of d
     arg = 
-      TableName : @vault()
-      Item : 
-        path : S : @file.realpath 
-        hash : S : @tree_hash
-        ctime : N : "#{Math.floor @file.stat.ctime.getTime()}"
-        mtime : N : "#{Math.floor @file.stat.mtime.getTime()}"
-        atime : N : "#{Date.now()}"
-        glacier_id : S : @id
-        enc : N : @file.enc.toString()
-    await @dynamo().putItem arg, defer err
+      DomainName : @vault()
+      ItemName : name
+      Attributes : obj_to_list attributes
+    await @sdb().putAtrributes arg, defer err
     if err?
-      @warn "dynamo.putItem #{JSON.stringify arg}: #{err}"
+      @warn "sdb.putAttributes #{JSON.stringify arg}: #{err}"
       ok = false
     else
       ok = true
