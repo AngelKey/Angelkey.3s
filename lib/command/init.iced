@@ -127,8 +127,15 @@ exports.Command = class Command extends Base
       if err?
         ok = false
         log.error "Error in creating access key: #{err}"
+      else if (not res?.AccessKey?) or (res?.AccessKey.Status isnt 'Active')
+        ok = false
+        log.error "Didn't get expected fields back from IAM; got #{JSON.stringify res}"
       else
-        {@AccessKeyId, @SecretAccessKey} = res
+        # Now we update the config obj, so that we're using
+        # the new, lower-privleged IAM.  We'll then write this version
+        # out to the FS.
+        @config.set "aws.accessKeyId", res.AccessKey.AccessKeyId
+        @config.set "aws.secretAccessKey", res.AccessKey.SecretAccessKey
     cb ok
 
   #--------------

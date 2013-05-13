@@ -63,7 +63,6 @@ exports.Uploader = class Uploader extends Base
       width : 25
       total : @file.stat.size
     @bar = new ProgressBar msg, opts
-    @bar.tick 0
 
   #--------------
 
@@ -79,12 +78,12 @@ exports.Uploader = class Uploader extends Base
       atime : Date.now()
       ctime : ctime
       enc : @file.enc.toString()
-    obj_to_list = (d) -> { name : k, value : v } for k,v of d
+    obj_to_list = (d) -> { Name : k, Value : "#{v}", Replace : true } for k,v of d
     arg = 
       DomainName : @vault()
       ItemName : name
       Attributes : obj_to_list attributes
-    await @sdb().putAtrributes arg, defer err
+    await @sdb().putAttributes arg, defer err
     if err?
       @warn "sdb.putAttributes #{JSON.stringify arg}: #{err}"
       ok = false
@@ -116,6 +115,8 @@ exports.Uploader = class Uploader extends Base
     params = 
       vaultName : @vault()
       uploadId : @id
+
+    @bar.tick 1 if @bar?
 
     while go
 
