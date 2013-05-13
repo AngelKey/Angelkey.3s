@@ -71,17 +71,18 @@ exports.Uploader = class Uploader extends Base
     # we want to store different versions of the file....
     mtime = Math.floor @file.stat.mtime.getTime()
     ctime = Math.floor @file.stat.ctime.getTime()
-    name = "#{@file.realpath}|#{mtime}"
     attributes = 
+      path : @file.realpath
       hash : @tree_hash
       glacier_id : @id
       atime : Date.now()
       ctime : ctime
+      mtime : mtime
       enc : @file.enc.toString()
     obj_to_list = (d) -> { Name : k, Value : "#{v}", Replace : true } for k,v of d
     arg = 
       DomainName : @vault()
-      ItemName : name
+      ItemName : @id
       Attributes : obj_to_list attributes
     await @sdb().putAttributes arg, defer err
     if err?

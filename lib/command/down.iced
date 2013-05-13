@@ -28,7 +28,6 @@ exports.Command = class Command extends Base
   #------------------------------
 
   run : (cb) ->
-    console.log "A"
     await @init defer ok
 
     if ok 
@@ -36,9 +35,7 @@ exports.Command = class Command extends Base
         filename : @argv.file[0]
         base : @
       }
-      console.log "B"
       await downloader.run defer ok 
-      console.log "C"
     cb ok
 
   #------------------------------

@@ -4,7 +4,13 @@ path = require 'path'
 fs = require 'fs'
 log = require './log'
 {Base} = require './awsio'
+util = require 'util'
 
+
+#=========================================================================
+
+class Upload
+  constructor : ({@glacier_id, @mtime, @ctime, @atime, @hash, @path, @enc}) -> 
 
 #=========================================================================
 
@@ -37,19 +43,33 @@ exports.Downloader = class Downloader extends Base
   #--------------
 
   find_file : (cb) ->
+    sel = "select * from `#{@vault()}` where path = '#{@filename}'"
     arg =
-      TableName : @vault()
-      Key : path : S : @filename
-      AttributesToGet : [ "hash", "glacier_id", "atime", "ctime", "mtime", "enc" ]
-
-    await @dynamo().getItem arg, defer err, res
+      SelectExpression : sel
+      ConsistentRead : false
+    await @sdb().select arg, defer err, data
     ok = true
+    ret = null
     if err?
-      @warn "dynamo.getItem #{JSON.stringify arg}: #{err}"
+      @warn "simpledb.select #{JSON.stringify arg}: #{err}"
       ok = false
     else
-      console.log res
-    cb ok
+      for i in data.Items
+        d = { glacier_id : i.Name }
+        for {Name,Value} in i.Attributes
+          if Name in [ "ctime", "mtime", "atime", "enc" ]
+            Value = parseInt Value, 10
+          d[Name] = Value
+        if not ret? or ret.ctime < d.ctime
+          ret = new Upload d
+      if (n = data.Items.length) > 1
+        log.info "Found #{n} items for '#{@filename}'; taking newest"
+
+      console.log ret
+      console.log util.inspect data, { depth : null }
+
+    cb ok, ret
+
   #--------------
 
   warn : (msg) ->
