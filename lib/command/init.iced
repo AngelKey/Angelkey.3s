@@ -187,6 +187,16 @@ exports.Command = class Command extends Base
         log.error "Error setting Queue attributes with #{JSON.stringify arg}: #{err}"
         ok = false
 
+    if ok
+      arg = 
+        TopicArn : @sns.arn
+        Protocol : 'sqs'
+        Endpoint : @sqs.arn
+      await @aws.sns.subscribe arg, defer err, res
+      if err?
+        log.error "Failed to establish subscription from #{@sqs.toString()} to #{@sns.toString()}: #{err}"
+        ok = false
+
     cb ok
 
   #------------------------------
