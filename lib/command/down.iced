@@ -15,6 +15,15 @@ exports.Command = class Command extends Base
       alias : "no-wait"
       action : "storeTrue"
       help : "don't wait, just start the job, and make the same call to check back later"
+    o :
+      alias : "output"
+      help : "path to output the file to (if not its original location)"
+    x : 
+      alias : 'encrypted-output'
+      help : "dump the encrypted output to the given path"
+    E :
+      alias : 'no-decrypt'
+      help : "don't even try to decrypt the file"
 
   #------------------------------
 

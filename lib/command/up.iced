@@ -53,7 +53,6 @@ exports.Command = class Command extends Base
     else 
       @eng = null
 
-
     if ok
       ins = @input.stream
       @input.enc = if @enc? then @enc.version() else 0

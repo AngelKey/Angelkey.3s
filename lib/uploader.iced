@@ -78,6 +78,7 @@ exports.Uploader = class Uploader extends Base
       atime : Date.now()
       ctime : ctime
       mtime : mtime
+      size : @archiveSize
       enc : @file.enc.toString()
     obj_to_list = (d) -> { Name : k, Value : "#{v}", Replace : true } for k,v of d
     arg = 
