@@ -33,6 +33,7 @@
     "bignum"             : "*",
     "colors"             : "*",
     "read"               : "*",
-    "purepack"           : "*"
+    "purepack"           : "*",
+    "framed-msgpack-rpc" : "*"
   }
 }
