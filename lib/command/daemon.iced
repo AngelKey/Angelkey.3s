@@ -22,12 +22,12 @@ exports.Command = class Command extends Base
   #------------------------------
 
   run : (cb) ->
-    if not @argv.debug and not @argv.foreground
-      await @daemonize defer()
-    if ok
-      await @init defer ok
-    if @argv.debug and ok
-      await @server.run defer()
-    cb ok
+    console.log "A"
+    ch = daemon [ "server", "--daemon" ]
+    await ch.once 'message', defer msg
+    for m in msg.err?
+      log.error "Error launching daemon: #{m}"
+    log.info "Server launched -> #{JSON.stringify msg}"
+    cb msg.ok
 
 #=========================================================================

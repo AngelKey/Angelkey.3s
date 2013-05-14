@@ -12,7 +12,7 @@ exports.info = info = (msg) -> winston.info colors.green msg
 #=========================================================================
 
 exports.daemonize = (file) ->
-  winston.add winston.transport.File, { filename : file }
-  winston.remove winston.transport.Console
+  winston.add winston.transports.File, { filename : file }
+  winston.remove winston.transports.Console
 
 #=========================================================================

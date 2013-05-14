@@ -11,4 +11,4 @@ exports.rmkey = (obj, key) ->
 
 exports.daemon = (args) ->
   icmd = path.join __dirname, "..", "node_modules", ".bin", "iced"
-  fork process.argv[1], args, { execPath : icmd }
+  fork process.argv[1], args, { execPath : icmd, detatched : true }

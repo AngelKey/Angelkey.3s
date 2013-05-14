@@ -10,15 +10,17 @@ exports.ExitHandler = class ExitHandler
     @setup()
     @_cb = null
 
-  hook : () ->
+  hook : (cb) ->
     if not @_ran_hook 
       @_ran_hook = true
-      for f in [ @config.sockfile(), @config.pidfile() ]
-        await fs.unlink f, defer err
-        log.error "Could not remove #{f}: #{err}"
+      await 
+        for f in [ @config.sockfile(), @config.pidfile() ]
+          log.info "unlink #{f}"
+          fs.unlink f, defer()
+    cb()
 
   on_exit : () ->
-    @hook()
+    await @hook defer()
     @_cb?()
 
   call_on_exit : (c) -> @_cb = c

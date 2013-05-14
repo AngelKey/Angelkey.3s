@@ -95,9 +95,9 @@ exports.Config = class Config
 
   #-------------------
 
-  sockfile : () -> @_get_file ".sock"
-  pidfile  : () -> @_get_file ".pid"
-  logfile  : () -> @_get_file ".log"
+  sockfile : () -> @_get_file "sock"
+  pidfile  : () -> @_get_file "pid"
+  logfile  : () -> @_get_file "log"
 
   #-------------------
 
