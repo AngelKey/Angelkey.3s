@@ -20,14 +20,10 @@ exports.Command = class Command extends Base
     return [ name ]
 
   #------------------------------
-
+  
   run : (cb) ->
-    console.log "A"
-    ch = daemon [ "server", "--daemon" ]
-    await ch.once 'message', defer msg
-    for m in msg.err?
-      log.error "Error launching daemon: #{m}"
-    log.info "Server launched -> #{JSON.stringify msg}"
-    cb msg.ok
+    l = new Launcher { @config }
+    await l.run defer ok
+    cb ok
 
 #=========================================================================
