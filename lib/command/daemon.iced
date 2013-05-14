@@ -3,6 +3,8 @@
 {add_option_dict} = require './argparse'
 log = require '../log'
 {Server} = require '../server'
+{daemon} = require '../util'
+fs = require 'fs'
 
 #=========================================================================
 
@@ -12,6 +14,9 @@ exports.Command = class Command extends Base
     d :
       alias : 'debug'
       help : 'stay in foreground for debugging'
+    f :
+      alias : 'foreground'
+      help : 'stay in the foreground for production'
 
   #------------------------------
 
@@ -46,14 +51,9 @@ exports.Command = class Command extends Base
 
   #------------------------------
 
-  go_daemon : () ->
-
-
-  #------------------------------
-
   daemonize : (cb) ->
     log.info "B"
-    @go_daemon()
+    daemon [ "daemon", '-f' ]
     log.info "B2"
     await fs.writeFile @config.pidfile(), "#{process.pid}", defer err
     log.info "B3"
@@ -64,7 +64,7 @@ exports.Command = class Command extends Base
   #------------------------------
 
   run : (cb) ->
-    if not @argv.debug
+    if not @argv.debug and not @argv.foreground
       await @daemonize defer()
     if ok
       await @init defer ok

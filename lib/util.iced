@@ -9,6 +9,6 @@ exports.rmkey = (obj, key) ->
   delete obj[key]
   ret
 
-exports.daemon = (main, args) ->
+exports.daemon = (args) ->
   icmd = path.join __dirname, "..", "node_modules", ".bin", "iced"
-  fork main, args, { execPath : icmd }
+  fork process.argv[1], args, { execPath : icmd }
