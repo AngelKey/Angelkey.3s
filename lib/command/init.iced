@@ -59,7 +59,7 @@ exports.Command = class Command extends Base
       key : 'email'
     },{
       name : 'region'
-      desc : 'AWS region (like "us-west-1")'
+      desc : 'AWS region (like "us-west-2")'
       key : 'aws.region'
     },{
       name : 'vault'

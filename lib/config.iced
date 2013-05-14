@@ -3,6 +3,7 @@ path = require 'path'
 fs = require 'fs'
 log = require './log'
 util = require 'util'
+mkdirp = require 'mkdirp'
 
 #=========================================================================
 
@@ -76,6 +77,31 @@ exports.Config = class Config
     log.warn "Failed to load config" unless ok
 
     cb ok
+
+  #-------------------
+
+  tmpdir : (cb) ->
+    unless @_tmpdir
+      @_tmpdir = @config?.json?.temp_dir
+      @_tmpdir = path.join path.sep, "tmp", "mkb" unless @_tmpdir?
+    @_tmpdir
+
+  #-------------------
+
+  sockname : (cb) ->
+    unless @_sockname
+      @_sockname = @config?.json?.sock_name
+      @_sockname = path.join @tmpdir(), "mkb.sock" unless @_sockname
+    @_sockname
+
+  #-------------------
+
+  make_tmpdir : (cb) ->
+    n = @tmpdir()
+    await mkdirp n, defer err
+    if err?
+      log.error "Error making temp dir #{n}: #{err}"
+    cb (not err?)
 
   #-------------------
 

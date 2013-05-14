@@ -42,6 +42,7 @@ class Main
       "up"
       "down"
       "init"
+      "daemon"
     ]
 
     subparsers = @ap.addSubparsers {
