@@ -36,6 +36,7 @@
     "purepack"           : "*",
     "framed-msgpack-rpc" : "*",
     "mkdirp"             : "*",
-    "init"               : "*"
+    "daemon"             : "*",
+    "winston"            : "*"
   }
 }

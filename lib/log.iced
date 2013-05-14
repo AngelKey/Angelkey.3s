@@ -1,11 +1,18 @@
 
 colors = require 'colors'
+winston = require 'winston'
 
 #=========================================================================
 
-exports.log = log = (msg) -> console.log msg
-exports.warn = warn = (msg) -> log colors.magenta msg
-exports.error = error = (msg) -> log colors.bold colors.red msg
-exports.info = info = (msg) -> log colors.green msg
+exports.log = log = (msg) -> info msg
+exports.warn = warn = (msg) -> winston.warn colors.magenta msg
+exports.error = error = (msg) -> winston.error colors.bold colors.red msg
+exports.info = info = (msg) -> winston.info colors.green msg
+
+#=========================================================================
+
+exports.daemonize = (file) ->
+  winston.add winston.transport.File, { filename : file }
+  winston.remove winston.transport.Console
 
 #=========================================================================

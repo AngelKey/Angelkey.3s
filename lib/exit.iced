@@ -5,18 +5,23 @@ log = require './log'
 
 exports.ExitHandler = class ExitHandler
 
-  constructor : ({@sockname}) ->
+  constructor : ({@config}) ->
     @_ran_hook = false
     @setup()
+    @_cb = null
 
   hook : () ->
     if not @_ran_hook 
       @_ran_hook = true
-      await fs.unlink @sockname, defer err
-      log.error "Could not remove #{sockname}: #{err}"
+      for f in [ @config.sockfile(), @config.pidfile() ]
+        await fs.unlink f, defer err
+        log.error "Could not remove #{f}: #{err}"
 
   on_exit : () ->
     @hook()
+    @_cb?()
+
+  call_on_exit : (c) -> @_cb = c
 
   do_exit : (rc) ->
     @on_exit()

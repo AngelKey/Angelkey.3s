@@ -8,14 +8,17 @@ fs = require 'fs'
 
 exports.Server = class Server extends rpc.SimpleServer
 
-  constructor : ({@sockname}) ->
-    super { path : @sockname }
+  constructor : ({@config}) ->
+    super { path : @config.sockfile() }
 
   get_program_name : () -> constants.PROT
 
   listen : (cb) ->
     await super defer err
-    @eh = new ExitHandler { @sockname} unless err?
+    @eh = new ExitHandler { @config } unless err?
     cb err
+
+  run : (cb) ->
+    @eh.call_on_exit cb
 
 #=========================================================================

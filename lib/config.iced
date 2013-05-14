@@ -14,6 +14,7 @@ exports.Config = class Config
   constructor : () ->
     @json = null
     @loaded = false
+    @cache = {}
 
   #-------------------
 
@@ -80,19 +81,29 @@ exports.Config = class Config
 
   #-------------------
 
-  tmpdir : (cb) ->
-    unless @_tmpdir
-      @_tmpdir = @config?.json?.temp_dir
-      @_tmpdir = path.join path.sep, "tmp", "mkb" unless @_tmpdir?
+  tmpdir : () ->
+    @_tmpdir = @config?.json?.files?.dir or (path.join path.sep, "tmp", "mkb") unless @_tmpdir?
     @_tmpdir
 
   #-------------------
 
-  sockname : (cb) ->
-    unless @_sockname
-      @_sockname = @config?.json?.sock_name
-      @_sockname = path.join @tmpdir(), "mkb.sock" unless @_sockname
-    @_sockname
+  _get_file : (which) -> 
+    unless (f = @cache[which])?
+      f = @config?.json?.files?[which] or path.join(@tmpdir(), "mkb.#{which}") 
+      @cache[which] = f
+    f
+
+  #-------------------
+
+  sockfile : () -> @_get_file ".sock"
+  pidfile  : () -> @_get_file ".pid"
+  logfile  : () -> @_get_file ".log"
+
+  #-------------------
+
+  pidfile : (cb) ->
+    @_pidfile = @config?.json?.files?.pid or (path.join @tmpdir(), "mkb.pid") unless @_pidfile?
+    @_pidfile
 
   #-------------------
 
