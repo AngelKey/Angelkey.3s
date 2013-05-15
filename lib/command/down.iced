@@ -56,15 +56,11 @@ exports.Command = class Command extends Base
         filename : @argv.file[0]
         base : @
       }
-      await downloader.find_file defer rc, md
+      await downloader.find_file defer rc
       ok = (rc is status.OK) 
 
-    if ok and md? and (md.enc isnt 0) and not @argv.encrypted_output
-      await mycrypto.derive_key_material @pwmgr, false, defer km
-      if not km?
-        log.error 'Failed to get needed key material'
-      else
-        md.km = km
+    if ok and not @argv.encrypted_output
+      await downloader.get_key_material defer ok
 
     cb ok
 

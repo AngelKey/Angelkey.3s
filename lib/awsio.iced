@@ -14,5 +14,6 @@ exports.Base = class Base
   iam     : -> @base.aws.iam
   vault   : -> @base.config.vault()
   interactive : -> @base.argv.interactive
+  pwmgr   : -> @base.pwmgr
 
 #=========================================================================

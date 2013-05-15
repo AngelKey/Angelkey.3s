@@ -6,6 +6,7 @@ log = require './log'
 {Base} = require './awsio'
 util = require 'util'
 {status} = require './constants'
+mycrypto = require './crypto'
 
 #=========================================================================
 
@@ -200,6 +201,14 @@ exports.Downloader = class Downloader extends Base
       log.info "Found metadata #{JSON.stringify @md}" if @md
 
     cb rc, @md
+
+  #--------------
+
+  get_key_material : (cb) ->
+    await mycrypto.derive_key_material @pwmgr(), false, defer @md.km
+    ok = @md.km?
+    if not ok then log.error "Failed to derive key material though it was needed"
+    cb ok
 
   #--------------
 
