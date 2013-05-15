@@ -5,14 +5,15 @@ fs = require 'fs'
 log = require './log'
 {Base} = require './awsio'
 util = require 'util'
-
+{status} = require './constants'
 
 #=========================================================================
 
 class MetaData
   constructor : ({@glacier_id, @mtime, @ctime, @atime, @hash, @path, @enc,
-       @jid}) -> 
+       @jid, @km}) -> 
     @jid = null if @jid?.length is 0
+
 
 #=========================================================================
 
@@ -34,7 +35,6 @@ class Status
 
   @is_dead : (s) -> 
     s in [ Status.NONE, Status.FAILED, Status.EXPIRED, Status.ERROR ]
-
 
 #=========================================================================
 
@@ -69,7 +69,10 @@ exports.Downloader = class Downloader extends Base
 
   run : (cb) ->
     ok = true
-    await @find_file defer ok     if ok
+
+    await @find_file defer rc     if ok
+    ok = (rc is status.OK)
+
     await @lookup_job defer()     if ok
 
     if ok and (not @job? or @job.is_dead())
@@ -171,14 +174,14 @@ exports.Downloader = class Downloader extends Base
       SelectExpression : sel
       ConsistentRead : false
     await @sdb().select arg, defer err, data
-    ok = true
+    rc = status.OK
     @md = null
     if err?
       @warn "simpledb.select #{JSON.stringify arg}: #{err}"
-      ok = false
+      rc = status.E_QUERY
     else if not data?.Items?.length
       @warn "file not found"
-      ok = false
+      rc = status.E_NOT_FOUND
     else
       for i in data.Items
         d = { glacier_id : i.Name }
@@ -196,7 +199,7 @@ exports.Downloader = class Downloader extends Base
 
       log.info "Found metadata #{JSON.stringify @md}" if @md
 
-    cb ok
+    cb rc, @md
 
   #--------------
 

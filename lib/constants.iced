@@ -11,3 +11,4 @@ exports.status =
   E_GENERIC : 100
   E_INVAL : 101
   E_NOT_FOUND : 102
+  E_QUERY : 103

@@ -253,9 +253,7 @@ class Transform extends stream.Transform
 
   # Called before init_stream() to key our ciphers and MACs.
   setup_keys : (cb) ->
-    make_key = @is_enc()
-    tks = gaf.total_key_size()
-    await @pwmgr.derive_key_material tks, make_key, defer km
+    await derive_key_material @pwmgr, @is_enc(), defer km
     if km
       @keys = gaf.produce_keys km
       ok = true
@@ -288,6 +286,13 @@ class Transform extends stream.Transform
     await @setup_keys defer ok
     @init_stream() if ok
     cb ok
+
+#==================================================================
+
+exports.derive_key_material = derive_key_material = (pwmgr, enc, cb) ->
+  tks = gaf.total_key_size()
+  await pwmgr.derive_key_material tks, enc, defer km
+  cb km
 
 #==================================================================
 
