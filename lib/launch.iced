@@ -14,6 +14,7 @@ exports.Launcher = class Launcher
   #------------------------------
 
   run : (cb) ->
+    cli = null
     ok = true
     await @check_socket defer rc
     if rc is status.E_INVAL
@@ -27,12 +28,13 @@ exports.Launcher = class Launcher
       if not ok
         log.error "Failed to initialize client"
     if ok
-      await client().ping defer ok
+      cli = client()
+      await cli.ping defer ok
       if not ok
         log.error "Failed to ping daemon process"
       else
         log.info "successfully pinged daemon process"
-    cb ok
+    cb ok, cli
 
   #------------------------------
 

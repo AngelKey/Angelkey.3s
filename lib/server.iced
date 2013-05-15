@@ -20,6 +20,10 @@ exports.Server = class Server extends rpc.SimpleServer
 
   h_ping : (arg, res) -> res.result { rc : status.OK }
 
+  h_download : (arg, res) ->
+    console.log "got download #{JSON.stringify arg}"
+    res.result { rc: status.OK }
+
   run : (cb) ->
     @eh.call_on_exit cb
 

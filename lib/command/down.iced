@@ -4,6 +4,7 @@ log = require '../log'
 mycrypto = require '../crypto'
 {Downloader} = require '../downloader'
 {status} = require '../constants'
+{Launcher} = require '../launch'
 
 #=========================================================================
 
@@ -12,10 +13,6 @@ exports.Command = class Command extends Base
   #------------------------------
 
   OPTS :
-    W :
-      alias : "no-wait"
-      action : "storeTrue"
-      help : "don't wait, just start the job, and make the same call to check back later"
     o :
       alias : "output"
       help : "path to output the file to (if not its original location)"
@@ -26,6 +23,7 @@ exports.Command = class Command extends Base
     E :
       alias : 'no-decrypt'
       help : "don't even try to decrypt the file"
+      action : 'storeTrue'
 
   #------------------------------
 
@@ -55,12 +53,27 @@ exports.Command = class Command extends Base
       downloader = new Downloader {
         filename : @argv.file[0]
         base : @
+        opts:
+          output_path : @argv.output
+          no_decrypt : @argv.no_decrypt
+          encrypted_output : @argv.encrypted_output
       }
       await downloader.find_file defer rc
       ok = (rc is status.OK) 
 
-    if ok and not @argv.encrypted_output
+    if ok and not @argv.no_decrypt
       await downloader.get_key_material defer ok
+      if not ok
+        log.error "Failed to derive key material for decryption"
+
+    if ok
+      launcher = new Launcher { @config }
+      await launcher.run defer ok, cli
+      if not ok
+        log.error 'Failed to launch or connect to daemon process'
+
+    if ok
+      downloader.send_download_to_daemon cli, defer ok
 
     cb ok
 

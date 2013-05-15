@@ -12,9 +12,8 @@ mycrypto = require './crypto'
 
 class MetaData
   constructor : ({@glacier_id, @mtime, @ctime, @atime, @hash, @path, @enc,
-       @jid, @km}) -> 
+       @jid}) -> 
     @jid = null if @jid?.length is 0
-
 
 #=========================================================================
 
@@ -61,10 +60,18 @@ exports.Downloader = class Downloader extends Base
 
   #--------------
 
-  constructor : ({@base, @filename}) ->
+  constructor : ({@base, @filename, @opts}) ->
     super { @base }
     @chunksz = 1024 * 1024
     @job = null
+
+  #--------------
+
+  export_to_obj : () -> {
+      md : @md
+      km : @km
+      opts : @opts
+  }
 
   #--------------
 
@@ -204,11 +211,16 @@ exports.Downloader = class Downloader extends Base
 
   #--------------
 
-  get_key_material : (cb) ->
-    await mycrypto.derive_key_material @pwmgr(), false, defer @md.km
-    ok = @md.km?
-    if not ok then log.error "Failed to derive key material though it was needed"
+  send_download_to_daemon : (cli, cb) ->
+    arg = @export_to_obj()
+    await cli.send_download arg, defer ok
     cb ok
+
+  #--------------
+
+  get_key_material : (cb) ->
+    await mycrypto.derive_key_material @pwmgr(), false, defer @km
+    cb @km?
 
   #--------------
 

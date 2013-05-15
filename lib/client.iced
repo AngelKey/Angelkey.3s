@@ -34,6 +34,10 @@ exports.Client = class Client
     await @_call_check "ping", {}, defer res
     cb res?
 
+  send_download : (obj, cb) ->
+    await @_call_check "download", obj, defer res
+    cb res?
+
   @make : (path, cb) ->
     x = new Client { path }
     await x.init defer ok
