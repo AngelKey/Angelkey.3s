@@ -2,7 +2,8 @@
 log = require './log'
 {daemon} = require './util'
 fs = require 'fs'
-{make_client,check_res} = require './client'
+{client,init_client} = require './client'
+{status} = require './constants'
 
 #=========================================================================
 
@@ -12,28 +13,40 @@ exports.Launcher = class Launcher
 
   #------------------------------
 
-  ping : (cb) ->
-    await make_client defer c
-    if c?
-      await c.invoke "ping", {}, null, defer err, res
-      ok = check_res, "ping", err, res
-      if err?
-        log.error "Error in ping: #{err}"
-      else if res.rc isnt 
+  run : (cb) ->
+    ok = true
+    await @check_socket defer rc
+    if rc is status.E_INVAL
+      ok = false
+    else if rc is status.E_NOT_FOUND
+      await @launch defer ok
+    if ok
+      log.debug "+> connecting to client"
+      await init_client @config.sockfile(), defer ok
+      log.debug "-> connected w/ status=#{ok}"
+      if not ok
+        log.error "Failed to initialize client"
+    if ok
+      await client().ping defer ok
+      if not ok
+        log.error "Failed to ping daemon process"
+      else
+        log.info "successfully pinged daemon process"
+    cb ok
 
   #------------------------------
 
   check_socket : (cb) ->
     f = @config.sockfile()
     await fs.stat f, defer err, stat
-    ok = false
-    if err?
-      log.error "Error statting socket: #{err}"
+
+    rc = if err? then status.E_NOT_FOUND
     else if not stat.isSocket()
       log.error "#{f}: socket wasn't a socket"
-    else
-      ok = true
-    cb ok
+      status.E_INVAL
+    else status.OK
+
+    cb rc
 
   #------------------------------
 
@@ -41,11 +54,11 @@ exports.Launcher = class Launcher
     log.info "+> Launching background server"
     ch = daemon [ "server", "--daemon" ]
     await ch.once 'message', defer msg
-    for m in msg.err?
-      log.error "Error launching daemon: #{m}"
+    if msg.err?.length
+      for m in msg.err
+        log.error "Error launching daemon: #{m}"
     else
       log.info "-> Launch succeded: ok=#{msg.ok}"
     cb msg.ok
-
 
 #=========================================================================

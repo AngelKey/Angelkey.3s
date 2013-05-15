@@ -2,7 +2,7 @@
 rpc = require 'framed-msgpack-rpc'
 fs = require 'fs'
 {ExitHandler} = require './exit'
-{constants} = require './constants'
+{status,constants} = require './constants'
 
 #=========================================================================
 
@@ -17,6 +17,8 @@ exports.Server = class Server extends rpc.SimpleServer
     await super defer err
     @eh = new ExitHandler { @config } unless err?
     cb err
+
+  h_ping : (arg, res) -> res.result { rc : status.OK }
 
   run : (cb) ->
     @eh.call_on_exit cb

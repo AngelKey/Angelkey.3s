@@ -5,6 +5,7 @@ log = require '../log'
 {Server} = require '../server'
 {daemon} = require '../util'
 fs = require 'fs'
+{Launcher} = require '../launch'
 
 #=========================================================================
 
@@ -20,7 +21,7 @@ exports.Command = class Command extends Base
     return [ name ]
 
   #------------------------------
-  
+
   run : (cb) ->
     l = new Launcher { @config }
     await l.run defer ok
