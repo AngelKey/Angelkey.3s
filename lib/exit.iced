@@ -19,14 +19,16 @@ exports.ExitHandler = class ExitHandler
           fs.unlink f, defer()
     cb()
 
-  on_exit : () ->
+  on_exit : (cb) ->
+    log.info "[pid #{process.pid}] shutting down...."
     await @hook defer()
+    cb?()
     @_cb?()
 
   call_on_exit : (c) -> @_cb = c
 
   do_exit : (rc) ->
-    @on_exit()
+    await @on_exit defer()
     process.exit rc
 
   setup : () ->

@@ -44,7 +44,7 @@ exports.Command = class Command extends Base
     await @config.make_tmpdir defer ok
     if ok
       sf = @config.sockfile()
-      @server = new Server { @config }
+      @server = new Server { base : @ }
       await @server.listen defer err
       if err?
         @err "Error listening on #{sf}: #{err}"
@@ -54,28 +54,21 @@ exports.Command = class Command extends Base
   #------------------------------
 
   daemonize : (cb) ->
-    log.info "B1"
     ok = true
     await fs.writeFile @config.pidfile(), "#{process.pid}", defer err
-    log.info "B2"
     if err? 
       ok = false
       @err "Error in making pidfile: #{err}"
-    log.info "B3"
     if ok
-      log.info @config.logfile()
       log.daemonize @config.logfile()
-    log.info "B4"
+      log.info "[pid #{process.pid}] starting up..."
     cb ok
 
   #------------------------------
 
   init : (cb) ->
-    log.info "A1"
     await super defer ok
-    log.info "A2"
     await @listen defer ok if ok
-    log.info "A3"
     if @argv.daemon and ok
       await @daemonize defer ok
     cb ok
