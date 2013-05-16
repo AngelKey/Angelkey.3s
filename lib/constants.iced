@@ -12,3 +12,4 @@ exports.status =
   E_INVAL : 101
   E_NOT_FOUND : 102
   E_QUERY : 103
+  E_DUPLICATE : 104

@@ -73,7 +73,9 @@ exports.Command = class Command extends Base
         log.error 'Failed to launch or connect to daemon process'
 
     if ok
-      downloader.send_download_to_daemon cli, defer ok
+      await downloader.send_download_to_daemon cli, defer rc
+      if rc is status.E_DUPLICATE
+        log.info "Duplicate job; request for #{@argv.file[0]} already pending"
 
     cb ok
 

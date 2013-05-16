@@ -3,9 +3,9 @@
 path = require 'path'
 fs = require 'fs'
 log = require './log'
-{Base} = require './awsio'
 util = require 'util'
 {status} = require './constants'
+{Base} = require './awsio'
 mycrypto = require './crypto'
 
 #=========================================================================
@@ -60,10 +60,14 @@ exports.Downloader = class Downloader extends Base
 
   #--------------
 
-  constructor : ({@base, @filename, @opts}) ->
+  constructor : ({@base, @filename, @opts, @km, @md}) ->
     super { @base }
     @chunksz = 1024 * 1024
     @job = null
+
+  #--------------
+
+  toString : () -> "#{@filename} #{JSON.stringify @md}"
 
   #--------------
 
@@ -75,17 +79,20 @@ exports.Downloader = class Downloader extends Base
 
   #--------------
 
+  @import_from_obj :({base, md, km, opts}) ->
+    md = new MetaData md
+    filename = md.path
+    new Downloader { base, filename, md, km, opts }
+
+  #--------------
+
   run : (cb) ->
     ok = true
-
-    await @find_file defer rc     if ok
-    ok = (rc is status.OK)
-
     await @lookup_job defer()     if ok
 
+    return cb ok
+
     if ok and (not @job? or @job.is_dead())
-      console.log "shit, wound up in IJ"
-      process.exit -3
       await @initiate_job defer ok if ok
 
     if ok and @job and @job.is_pending()
@@ -101,6 +108,7 @@ exports.Downloader = class Downloader extends Base
   lookup_job : (cb) ->
     status = Status.NONE
     if @md.jid? and not @job?
+      log.info "+> lookup_job #{@md.jid}"
       arg = 
         vaultName : @vault()
         jobId : @md.jid
@@ -121,9 +129,12 @@ exports.Downloader = class Downloader extends Base
         params.completed = Date.parse d if (d = res.CompletionDate)?
         @job = new Job params
 
+      log.info "-> lookup_job #{@md.jid} -> #{status}"
+
     @job = new Job { status } unless @job?
 
     if @md.jid? and @job.is_dead()
+      log.info "|> clearing out dead job #{@md.jid}"
       await @write_job_id null, defer ok
 
     cb @job
