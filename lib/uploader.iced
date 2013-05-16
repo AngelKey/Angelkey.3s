@@ -8,6 +8,7 @@ log = require './log'
 AWS = require 'aws-sdk'
 {Batcher} = require './batcher'
 {Base} = require './awsio'
+{js2unix} = require './util'
 
 #=========================================================================
 
@@ -70,16 +71,16 @@ exports.Uploader = class Uploader extends Base
   index : (cb) -> 
     # The primary key is the realpath + the modification time, in case
     # we want to store different versions of the file....
-    mtime = Math.floor @file.stat.mtime.getTime()
-    ctime = Math.floor @file.stat.ctime.getTime()
-    attributes = 
-      path : @file.realpath
-      hash : @tree_hash
-      atime : Date.now()
-      ctime : ctime
-      mtime : mtime
-      size : @archiveSize
+    mtime = js2unix @file.stat.mtime.getTime()
+    ctime = js2unix @file.stat.ctime.getTime()
+    atime = js2unix Date.now()
+    attributes =  {
+      path : @file.realpath,
+      hash : @tree_hash,
+      atime, ctime, mtime,
+      size : @archiveSize,
       enc : @file.enc.toString()
+    }
     obj_to_list = (d) -> { Name : k, Value : "#{v}", Replace : true } for k,v of d
     arg = 
       DomainName : @vault()
@@ -141,7 +142,7 @@ exports.Uploader = class Uploader extends Base
           @warn "In upload #{start}-#{end}: #{err}"
           go = false
         start = end
-    console.log ""
+    console.log "" if bar?
 
     @full_hash = full_hash.digest 'hex'
     @archiveSize = end
