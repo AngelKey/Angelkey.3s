@@ -47,7 +47,7 @@ class Queue
       log.info "|> Queueing job, since #{@n}>=#{@lim} outstanding: #{obj.toString()}"
       @_q.push obj
 
-  _lauch_one : (obj, out) ->
+  _launch_one : (obj, out) ->
     @n++
     await obj.run defer()
     log.info "|> Launching download job: #{obj.toString()}"
@@ -72,14 +72,18 @@ class JobLauncher
   constructor : ({@base, @server}) ->
     @filenames = {}
     @jobids = {}
+    @n_waiting_jobs = 0
     @q = new Queue { lim : 3, launcher : @ }
 
   #-------------
 
   polling_loop : () ->
     loop
+      log.info "+> polling SQS"
       await @poll defer()
-      iv = constants.poll_interval[if @jobs.length then "active" else "passive"]
+      which = if (@n_waiting_jobs > 0) then "active" else "passive"
+      iv = constants.poll_intervals[which]
+      log.info "-> polled SQS, sleep #{iv}s"
       await setTimeout defer(), iv*1000 
 
   #-------------
@@ -159,13 +163,13 @@ class JobLauncher
 
     if dl?
       await dl.launch defer ok
-
-    if not ok
-      log.warn "job kickoff failed for #{dl.toString()}"
-    else if dl.is_ready()
-      @start_download dl
-    else
-      @jobids[dl.job.id] = dl
+      if not ok
+        log.warn "job kickoff failed for #{dl.toString()}"
+      else if dl.is_ready()
+        @start_download dl
+      else
+        @jobids[dl.job.id] = dl
+        @n_waiting_jobs++
 
   #-------------
 
