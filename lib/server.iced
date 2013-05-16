@@ -4,7 +4,8 @@ fs = require 'fs'
 {ExitHandler} = require './exit'
 {status,constants} = require './constants'
 log = require './log'
-{Downloader} = require './downloader'
+{JobStatus,Downloader} = require './downloader'
+aws = require './aws'
 
 #=========================================================================
 
@@ -12,7 +13,7 @@ exports.Server = class Server extends rpc.SimpleServer
 
   constructor : ({@base}) ->
     super { path : @base.config.sockfile() }
-    @launcher = new Launcher { @base, server : @ }
+    @launcher = new JobLauncher { @base, server : @ }
 
   get_program_name : () -> constants.PROT
 
@@ -49,6 +50,7 @@ class Queue
   _lauch_one : (obj, out) ->
     @n++
     await obj.run defer()
+    log.info "|> Launching download job: #{obj.toString()}"
     @launcher.completed obj
     @n--
     @done()
@@ -68,7 +70,8 @@ class JobLauncher
   #-------------
 
   constructor : ({@base, @server}) ->
-    @jobs = {}
+    @filenames = {}
+    @jobids = {}
     @q = new Queue { lim : 3, launcher : @ }
 
   #-------------
@@ -81,25 +84,75 @@ class JobLauncher
 
   #-------------
 
+  process_message : (m, cb) ->
+    try
+      body = JSON.parse m.Body
+      msg = JSON.parse body.Message
+      if msg.Action isnt "ArchiveRetrieval"
+        err = "not a retrieval"
+      else if not (jid = msg.JobId)?
+        err = "missing job ID"
+      else if (sc = JobStatus.from_string(msg.StatusCode)) isnt JobStatus.SUCCEEDED
+        err = "job failed"
+      else if not (dl = @jobids[jid])?
+        err = "Job not found"
+    catch e
+      err = "mangled JSON"
+
+    if err?
+      log.error "Skipping job: #{err}: #{JSON.stringify m}"
+    else if dl?
+      dl.job.status = sc
+      log.info "|> Job is now ready: #{dl.toString()}"
+      @start_download dl
+
+    if (rh = m.ReceiptHandle)?
+      arg = 
+        QueueUrl : @sqs.url
+        ReceiptHandle : rh
+      await @base.aws.sqs.deleteMessage arg, defer err
+      if err?
+        log.error "Error in deleting receipt handle #{rh}: #{err}"
+    else
+      log.error "No receipt handle found in message: #{JSON.stringify m}"
+
+    cb()
+
+  #-------------
+
   poll : (cb) ->
+    arg = 
+      QueueUrl : @sqs.url
+      MaxNumberOfMessages : 5
+      WaitTimeSeconds : 1
+    await @base.aws.sqs.receiveMessage arg, defer err, res
+    if err
+      log.error "Error in polling SQS: #{err}"
+    else if res?.Messages?
+      console.log "shit"
+      for m in res.Messages
+        console.log "assfuck"
+        await @process_message m, defer()
+    cb()
 
   #-------------
 
   start : () ->
-    polling_loop()
+    @sqs = new aws.Resource { arn : @base.config.sqs() }
+    @polling_loop()
 
   #-------------
 
   incoming_job : (arg, cb) ->
     filename = arg.md.path
-    if (job = @jobs[filename])?
+    if (job = @filenames[filename])?
       rc = status.E_DUPLICATE
       log.info "|> skipping duplicated job: #{filename}"
     else
       rc = status.OK
       arg.base = @base
       dl = Downloader.import_from_obj arg
-      @jobs[filename] = dl
+      @filenames[filename] = dl
       log.info "|> incoming job: #{dl.toString()}"
 
     cb rc
@@ -111,10 +164,13 @@ class JobLauncher
       log.warn "job kickoff failed for #{dl.toString()}"
     else if dl.is_ready()
       @start_download dl
+    else
+      @jobids[dl.job.id] = dl
 
   #-------------
 
   start_download : (dl) ->
+    log.info "|> starting download #{dl.toString()}"
     @q.enqueue dl
 
   #-------------

@@ -17,7 +17,7 @@ class MetaData
 
 #=========================================================================
 
-class Status
+exports.JobStatus = class Status
   @NONE = 0
   @IN_PROGRESS = 1
   @SUCCEEDED = 2
@@ -67,7 +67,11 @@ exports.Downloader = class Downloader extends Base
 
   #--------------
 
-  toString : () -> "#{@filename} #{JSON.stringify @md}"
+  toString : () -> "#{@filename} | #{JSON.stringify @md} | #{JSON.stringify @job}"
+
+  #--------------
+
+  is_ready : () -> @job?.is_ready()
 
   #--------------
 
@@ -102,6 +106,10 @@ exports.Downloader = class Downloader extends Base
       await @initiate_job defer ok if ok
 
     cb ok
+
+  #--------------
+
+  run : (cb) -> cb true
 
   #--------------
 

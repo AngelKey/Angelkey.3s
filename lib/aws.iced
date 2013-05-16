@@ -8,6 +8,7 @@ exports.Resource = class Resource
 
   constructor : ({@url, @arn}) ->
     @arn = Resource.url_to_arn @url if not @arn? and @url?
+    @url = Resource.arn_to_url @arn if not @url? and @arn?
 
   @url_to_arn : (u) ->
     uparts = url.parse u
@@ -15,6 +16,15 @@ exports.Resource = class Resource
     path = uparts.path.split '/'
     aparts = [ 'arn', 'aws'].concat( host[0...2]).concat(path[1...3])
     aparts.join ':'
+
+  @arn_to_url : (a) ->
+    aparts = a.split ':'
+    [svc,region,acctid,id] = aparts[2...]
+    o = 
+      protocol : "https"
+      host : [ svc, region, "amazonaws.com" ].join '.'
+      pathname : [ '',acctid,id ].join '/'
+    url.format o
 
   toString : () -> @arn
 
