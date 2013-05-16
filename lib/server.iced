@@ -9,6 +9,10 @@ aws = require './aws'
 
 #=========================================================================
 
+rpc.pack.use_byte_arrays()
+
+#=========================================================================
+
 exports.Server = class Server extends rpc.SimpleServer
 
   constructor : ({@base}) ->

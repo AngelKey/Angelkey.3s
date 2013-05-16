@@ -7,6 +7,8 @@ util = require 'util'
 {status} = require './constants'
 {Base} = require './awsio'
 mycrypto = require './crypto'
+crypto = require 'crypto'
+myfs = require './fs'
 stream = require 'stream'
 AWS = require 'aws-sdk'
 {Tee} = require './tee'
@@ -62,6 +64,7 @@ class Job
 class Stream extends stream.Readable
 
   constructor : ({@dl}) ->
+    super()
     @i = 0
 
   _eof : () -> @i >= @dl.md.size
@@ -144,15 +147,12 @@ exports.Downloader = class Downloader extends Base
 
   #--------------
 
-  output_filename_base : () -> opts.output_path or @filename
+  output_filename_base : () -> @opts.output_path or @filename
 
   #--------------
 
   run : (cb) -> 
     input = new Stream { dl : @ }
-
-    console.log "fuuuuck"
-    console.log @km
 
     unless @opts.no_decrypt
       eng = new mycrypto.Decryptor { 
@@ -183,15 +183,15 @@ exports.Downloader = class Downloader extends Base
     if ok
       p = input
       if @opts.no_decrypt
-        p = p.pipe tmp_raw.stream
+        p = p.pipe tmp_raw.stream()
       else 
         if @opts.encrypted_output
-          p = p.pipe( new Tee { out : tmp_raw.stream } )
-        p.pipe(eng).pipe(tmp.stream)
+          p = p.pipe( new Tee { out : tmp_raw.stream() } )
+        p.pipe(eng).pipe(tmp.stream())
 
-      await input.stream.once 'end', defer()
-      await tmp_raw.stream.once 'finish', defer() if tmp_raw?
-      await tmp.stream.once 'finish', defer() if tmp?
+      await input.once 'end', defer()
+      await tmp_raw.stream().once 'finish', defer() if tmp_raw?
+      await tmp.stream().once 'finish', defer() if tmp?
 
       for t in tmps
         await @t.finish defer ok
@@ -217,14 +217,12 @@ exports.Downloader = class Downloader extends Base
         status = Status.ERROR
         @warn "Wrong job type: #{t}"
       else
-        console.log res
         params = 
           id : @md.jid
           status : Status.from_string res.StatusCode
           size : res.ArchiveSizeInBytes
         params.started = Date.parse d if (d = res.CreationDate)?
         params.completed = Date.parse d if (d = res.CompletionDate)?
-        console.log params
         @job = new Job params
 
       log.info "-> lookup_job #{@md.jid} -> #{status}"
@@ -302,7 +300,6 @@ exports.Downloader = class Downloader extends Base
     else
       for i in data.Items
         d = { glacier_id : i.Name }
-        console.log i.Attributes
         for {Name,Value} in i.Attributes
           if Name in [ "ctime", "mtime", "atime", "enc", "size" ]
             Value = parseInt Value, 10

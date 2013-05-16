@@ -2,6 +2,8 @@
 fs = require 'fs'
 log = require './log'
 C = require 'constants'
+base58 = require './base58'
+crypto = require 'crypto'
 
 ##======================================================================
 
@@ -89,6 +91,11 @@ exports.Tmp = class Tmp
     else
       @renamed = true
     cb not err?
+
+  finish : (cb) ->
+    await @rename defer()
+    await @clenaup defer()
+    cb()
 
   cleanup : (cb) ->
     ok = false

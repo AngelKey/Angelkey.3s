@@ -72,7 +72,7 @@ exports.PasswordManager = class PasswordManager
         log.error "No password given; can't derive keys"
 
     if pw? and salt?
-      await crypto.pbkdf2 pw, salt, sz, @pbkdf_iters, defer err, ret
+      await crypto.pbkdf2 pw, salt, @pbkdf_iters, sz, defer err, ret
       if err
         log.error "PBKDF2 failed: #{err}"
 

@@ -3,6 +3,7 @@ stream = require 'stream'
 
 exports.Tee = class Tee extends stream.Transform
   constructor : (options) ->
+    super()
     @out = options.out
     @once 'end', =>
       await @out.end defer()

@@ -1,7 +1,10 @@
-
 rpc = require 'framed-msgpack-rpc'
 {constants,status} = require './constants'
 log = require './log'
+
+#=========================================================================
+
+rpc.pack.use_byte_arrays()
 
 #=========================================================================
 
