@@ -52,7 +52,7 @@ class Job
 
   is_dead : () -> Status.is_dead @status
   is_pending : () -> @status is Status.IN_PROGRESS
-  is_success : () -> @status is Status.SUCCEEDED
+  is_ready  : () -> @status is Status.SUCCEEDED
 
 #=========================================================================
 
@@ -79,6 +79,14 @@ exports.Downloader = class Downloader extends Base
 
   #--------------
 
+  # don't export the key material to AWS
+  export_to_desc : () -> {
+      md : @md
+      opts : @opts
+    }
+
+  #--------------
+
   @import_from_obj :({base, md, km, opts}) ->
     md = new MetaData md
     filename = md.path
@@ -86,15 +94,18 @@ exports.Downloader = class Downloader extends Base
 
   #--------------
 
-  run : (cb) ->
+  launch : (cb) ->
     ok = true
     await @lookup_job defer()     if ok
-
-    return cb ok
 
     if ok and (not @job? or @job.is_dead())
       await @initiate_job defer ok if ok
 
+    cb ok
+
+  #--------------
+
+  dontuse : ->
     if ok and @job and @job.is_pending()
       await @wait_for_job defer ok if ok
 
@@ -117,10 +128,10 @@ exports.Downloader = class Downloader extends Base
       ok = true
       if err?
         status = Status.ERROR
-        warn "Error in polling job: #{err}"
+        @warn "Error in polling job: #{err}"
       else if (t = res.Action) isnt 'ArchiveRetrieval'
         status = Status.ERROR
-        warn "Wrong job type: #{t}"
+        @warn "Wrong job type: #{t}"
       else
         params = 
           id : @md.jid
@@ -173,7 +184,7 @@ exports.Downloader = class Downloader extends Base
       @warn "Initiate retrieval job failed: #{err}"
       ok = false
     else
-      log.info "InitiateJob gave #{JSON.stringify res}"
+      log.info "|> InitiateJob gave #{JSON.stringify res}"
       @job = new Job { status : Status.InProgress, id : res.jobId }
     if ok
       await @write_job_id @job.id, defer ok

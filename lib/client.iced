@@ -36,7 +36,7 @@ exports.Client = class Client
 
   send_download : (obj, cb) ->
     await @_call_check "download", obj, defer(res), [ status.OK, status.E_DUPLICATE ]
-    cb if res then res.rc else res.E_GENERIC
+    cb if res then res.rc else status.E_GENERIC
 
   @make : (path, cb) ->
     x = new Client { path }

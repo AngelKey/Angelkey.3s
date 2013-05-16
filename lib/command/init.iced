@@ -1,6 +1,5 @@
 
 {Base} = require './base'
-{Initializer} = require '../initializer'
 {add_option_dict} = require './argparse'
 read = require 'read'
 log = require '../log'
