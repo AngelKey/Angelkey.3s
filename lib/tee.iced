@@ -1,7 +1,7 @@
 
-{stream} = require 'stream'
+stream = require 'stream'
 
-exports.Tee = class Tee extends stream.Transforma
+exports.Tee = class Tee extends stream.Transform
   constructor : (options) ->
     @out = options.out
     @once 'end', =>

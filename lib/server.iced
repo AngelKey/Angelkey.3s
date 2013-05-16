@@ -180,7 +180,6 @@ class JobLauncher
   #-------------
 
   start_download : (dl) ->
-    log.info "|> starting download #{dl.toString()}"
     @q.enqueue dl
 
   #-------------

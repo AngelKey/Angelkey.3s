@@ -15,8 +15,7 @@ AWS = require 'aws-sdk'
 #=========================================================================
 
 class MetaData
-  constructor : ({@glacier_id, @mtime, @ctime, @atime, @hash, @path, @enc,
-       @jid}) -> 
+  constructor : ({@glacier_id, @mtime, @ctime, @atime, @hash, @path, @enc, @size, @jid}) ->
     @jid = null if @jid?.length is 0
 
 #=========================================================================
@@ -290,6 +289,7 @@ exports.Downloader = class Downloader extends Base
     else
       for i in data.Items
         d = { glacier_id : i.Name }
+        console.log i.Attributes
         for {Name,Value} in i.Attributes
           if Name in [ "ctime", "mtime", "atime", "enc", "size" ]
             Value = parseInt Value, 10
