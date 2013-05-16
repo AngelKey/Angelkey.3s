@@ -43,7 +43,7 @@ exports.JobStatus = class Status
 
 class Job 
 
-  constructor : ({@id, @status, @completed, @started}) ->
+  constructor : ({@id, @status, @completed, @started, @size}) ->
     # Reasonable defaults
     @status = Status.NONE unless @status?
     @started = Date.now() unless @started?
@@ -150,11 +150,21 @@ exports.Downloader = class Downloader extends Base
 
   run : (cb) -> 
     input = new Stream { dl : @ }
+
+    console.log "fuuuuck"
+    console.log @km
+
     unless @opts.no_decrypt
-      eng = new mycrypto.Decryptor { pwmgr: @base.pwmgr, stat: @md }
+      eng = new mycrypto.Decryptor { 
+        pwmgr: @base.pwmgr
+        stat: @md
+        total_size : @job.size 
+        key_material : @km
+      }
       await eng.init defer ok
       if not ok
         log.error "Could not set up decryption"
+
     if ok
       ofb = @output_filename_base()
       tmps = []
@@ -207,11 +217,14 @@ exports.Downloader = class Downloader extends Base
         status = Status.ERROR
         @warn "Wrong job type: #{t}"
       else
+        console.log res
         params = 
           id : @md.jid
           status : Status.from_string res.StatusCode
+          size : res.ArchiveSizeInBytes
         params.started = Date.parse d if (d = res.CreationDate)?
         params.completed = Date.parse d if (d = res.CompletionDate)?
+        console.log params
         @job = new Job params
 
       log.info "-> lookup_job #{@md.jid} -> #{status}"

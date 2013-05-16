@@ -253,8 +253,11 @@ class Transform extends stream.Transform
 
   # Called before init_stream() to key our ciphers and MACs.
   setup_keys : (cb) ->
-    if @key_material? and @key_material.length is gaf.total_key_size()
-      km = @key_material
+    if @key_material? 
+      if (got = @key_material.length) is (wanted = gaf.total_key_size())
+        km = @key_material
+      else
+        log.error "Key material size mismatch: #{got} != #{wanted}"
     else
       await derive_key_material @pwmgr, @is_enc(), defer km
     if km
