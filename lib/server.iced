@@ -49,8 +49,9 @@ class Queue
 
   _launch_one : (obj, out) ->
     @n++
+    log.info "+> Launching download job: #{obj.toString()}"
     await obj.run defer()
-    log.info "|> Launching download job: #{obj.toString()}"
+    log.info "-> Completed download job: #{obj.toString()}"
     @launcher.completed obj
     @n--
     @done()
@@ -79,12 +80,12 @@ class JobLauncher
 
   polling_loop : () ->
     loop
-      log.info "+> polling SQS"
-      await @poll defer()
       which = if (@n_waiting_jobs > 0) then "active" else "passive"
       iv = constants.poll_intervals[which]
-      log.info "-> polled SQS, sleep #{iv}s"
       await setTimeout defer(), iv*1000 
+      log.info "+> polling SQS (after #{iv}s sleep)"
+      await @poll defer()
+      log.info "-> polled SQS"
 
   #-------------
 
@@ -133,9 +134,7 @@ class JobLauncher
     if err
       log.error "Error in polling SQS: #{err}"
     else if res?.Messages?
-      console.log "shit"
       for m in res.Messages
-        console.log "assfuck"
         await @process_message m, defer()
     cb()
 
@@ -170,6 +169,13 @@ class JobLauncher
       else
         @jobids[dl.job.id] = dl
         @n_waiting_jobs++
+
+  #-------------
+
+  completed : (dl) ->
+    if (@jobids[dl.jobs.id]) 
+      @n_waiting_jobs--
+      delete @jobids[dl.jobs.id]
 
   #-------------
 

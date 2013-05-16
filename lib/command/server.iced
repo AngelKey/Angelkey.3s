@@ -62,6 +62,9 @@ exports.Command = class Command extends Base
     if ok
       log.daemonize @config.logfile()
       log.info "[pid #{process.pid}] starting up..."
+    if ok
+      # Set the password manager to not prompt for keys...
+      @pwmgr.get_opts().bg = true
     cb ok
 
   #------------------------------

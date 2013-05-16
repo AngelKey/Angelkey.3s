@@ -20,6 +20,10 @@ exports.PasswordManager = class PasswordManager
 
   #-------------------
 
+  get_opts : -> @opts
+
+  #-------------------
+
   _prompt_1 : (prompt, cb) ->
     await read { prompt : "#{prompt}> ", silent : true }, defer err, res
     if err
@@ -78,7 +82,7 @@ exports.PasswordManager = class PasswordManager
 
   get_password : (is_new, cb) ->
     if not @_pw?
-      if not (pw = @opts.password)? and @opts.interactive
+      if not (pw = @opts.password)? and @opts.interactive and not @opts.bg
         await @prompt_for_pw is_new, defer pw
       @_pw = pw
     cb @_pw

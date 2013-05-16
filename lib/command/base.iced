@@ -133,18 +133,7 @@ exports.CipherBase = class CipherBase extends Base
 
   #-----------------
 
-  strip_extension : (fn) ->
-    v = fn.split "."
-    x = @file_extension()
-    l = v.length
-    if v[l-1] is x then v[0...(l-1)].join '.'
-    else null
-
-  #-----------------
-
-  tmp_filename : (stem) ->
-    ext = base58.encode crypto.rng 8
-    [stem, ext].join '.'
+  strip_extension : (fn) -> myfs.strip_extension fn, @file_extension()
 
   #-----------------
 
@@ -152,7 +141,7 @@ exports.CipherBase = class CipherBase extends Base
     ok = true
     if (ofn = @output_filename())?
       @outfn = ofn
-      tmpfn = @tmp_filename @outfn
+      tmpfn = myfs.tmp_filename @outfn
       await myfs.open { filename : tmpfn, write : true }, defer err, output
       if err?
         log.error "Error opening temp outfile #{tmpfn}: #{err}"

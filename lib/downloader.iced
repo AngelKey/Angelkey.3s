@@ -7,6 +7,10 @@ util = require 'util'
 {status} = require './constants'
 {Base} = require './awsio'
 mycrypto = require './crypto'
+stream = require 'stream'
+AWS = require 'aws-sdk'
+{Tee} = require './tee'
+{PasswordManager} = require './pw'
 
 #=========================================================================
 
@@ -53,6 +57,38 @@ class Job
   is_dead : () -> Status.is_dead @status
   is_pending : () -> @status is Status.IN_PROGRESS
   is_ready  : () -> @status is Status.SUCCEEDED
+
+#=========================================================================
+
+class Stream extends stream.Readable
+
+  constructor : ({@dl}) ->
+    @i = 0
+
+  _eof : () -> @i >= @dl.md.size
+
+  _read : (sz) ->
+    start = @i
+    arg = 
+      vaultName : @dl.vault()
+      jobId : @dl.job.id
+      range : "#{start}-#{end-1}"
+    end = start + @dl.chunksz
+    if end > @dl.md.size then end = @dl.md.size
+    @i = end
+    await @dl.glacier().getJobOutput arg, defer err, res
+    if err?
+      log.error "Error in download: #{err}"
+      @emit 'error', err
+    else
+      dat = new Buffer res.body, 'binary'
+      h = crypto.createHash('sha256').update(dat).digest('hex')
+      if h isnt res.checksum
+        log.error "Checksum failure for block #{JSON.stringify arg}"
+        @emit 'error', "checksum failure"
+      else
+        @push dat
+        @emit 'end' if @_eof()
 
 #=========================================================================
 
@@ -109,17 +145,48 @@ exports.Downloader = class Downloader extends Base
 
   #--------------
 
-  run : (cb) -> cb true
+  output_filename_base : () -> opts.output_path or @filename
 
   #--------------
 
-  dontuse : ->
-    if ok and @job and @job.is_pending()
-      await @wait_for_job defer ok if ok
+  run : (cb) -> 
+    input = new Stream { dl : @ }
+    unless @opts.no_decrypt
+      eng = new mycrypto.Decryptor { pwmgr: @base.pwmgr, stat: @md }
+      await eng.init defer ok
+      if not ok
+        log.error "Could not set up decryption"
+    if ok
+      ofb = @output_filename_base()
+      tmps = []
+      if @opts.no_decrypt or @opts.encypted_output
+        target = [ofb, @base.config.file_extension() ].join '.'
+        tmp_raw = new myfs.Tmp { target }
+        tmps.push tmp_raw
 
-    if ok and @job and @job.is_success()
-      await @download_file defer ok if ok 
-      await @finalize_file defer ok if ok
+      unless @opts.no_decrypt
+        tmp = new myfs.Tmp { target : ofb }
+        tmps.push tmp
+
+      for t in tmps when ok
+        await t.open defer ok
+
+    if ok
+      p = input
+      if @opts.no_decrypt
+        p = p.pipe tmp_raw.stream
+      else 
+        if @opts.encrypted_output
+          p = p.pipe( new Tee { out : tmp_raw.stream } )
+        p.pipe(eng).pipe(tmp.stream)
+
+      await input.stream.once 'end', defer()
+      await tmp_raw.stream.once 'finish', defer() if tmp_raw?
+      await tmp.stream.once 'finish', defer() if tmp?
+
+      for t in tmps
+        await @t.finish defer ok
+
     cb ok 
 
   #--------------
@@ -224,7 +291,7 @@ exports.Downloader = class Downloader extends Base
       for i in data.Items
         d = { glacier_id : i.Name }
         for {Name,Value} in i.Attributes
-          if Name in [ "ctime", "mtime", "atime", "enc" ]
+          if Name in [ "ctime", "mtime", "atime", "enc", "size" ]
             Value = parseInt Value, 10
           d[Name] = Value
 

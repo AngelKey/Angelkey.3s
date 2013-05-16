@@ -13,7 +13,7 @@ exports.File = class File
 
 ##======================================================================
 
-exports.open = ({filename, write, mode, bufferSize}, cb) ->
+exports.open = open = ({filename, write, mode, bufferSize}, cb) ->
   mode or= 0o640
   bufferSize or= 1024*1024
   stat = null
@@ -45,12 +45,61 @@ exports.open = ({filename, write, mode, bufferSize}, cb) ->
 
 ##======================================================================
 
-exports.stdout = () -> {
+exports.tmp_filename = tmp_filename = (stem) ->
+  ext = base58.encode crypto.rng 8
+  [stem, ext].join '.'
+
+##======================================================================
+
+exports.strip_extension = strip_extension = (fn, ext) -> 
+  v = fn.split "."
+  l = v.length
+  if v[l-1] is ext then v[0...(l-1)].join '.'
+  else null
+
+##======================================================================
+
+exports.stdout = () -> new File {
   stream : process.stdout
   filename : "<stdout>"
   realpath : "<stdout>"
   fd : -1
 }
+
+##======================================================================
+
+exports.Tmp = class Tmp 
+
+  constructor : ({@target, @mode, @bufferSize}) ->
+    @tmpname = tmp_filename @target
+    @renamed = false
+
+  open : (cb) ->
+    await open { filename : @tmpname, write : true, @mode, @bufferSize }, defer err, @tmp
+    if err?
+      log.error "Error opening file: #{err}"
+    cb not err?
+
+  close : () -> @tmp?.close()
+
+  rename : (cb) ->
+    await fs.rename @tmpname, @target, defer err
+    if err?
+      log.error "Failed to rename temporary file: #{err}"
+    else
+      @renamed = true
+    cb not err?
+
+  cleanup : (cb) ->
+    ok = false
+    if not @renamed
+      await fs.unlink @tmpname, defer err
+      if err?
+        log.error "failed to remove temporary file: #{err}"
+        ok = false
+    cb ok
+
+  stream : () -> @tmp?.stream
 
 ##======================================================================
 
