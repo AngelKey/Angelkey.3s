@@ -16,3 +16,5 @@ exports.status =
   E_NOT_FOUND : 102
   E_QUERY : 103
   E_DUPLICATE : 104
+  E_BAD_MAC : 105
+  E_BAD_SIZE : 106

@@ -1,0 +1,164 @@
+#
+# block.iced --- The crypto engine for working on a 1MB block of data.
+#
+#  Earlier versions of crypto in mkb used streaming crypto, and two
+#  different algorithms for encryption.  I think those were both mistakes.
+#  Streaming crypto doesn't work well with the block-based multipart
+#  API that amazon exposes in glacier.  It's esepcially inconvenient
+#  when it comes to interrupted transfers.
+#
+#  So why just one cipher?  I was worried I couldn't find a second
+#  cipher in OpenSSL 1.0.1d that will be around in 10 years. The only
+#  candidate is Camellia, but I'm concerned that no one seems to 
+#  use it, and there might not be a ready implementation available
+#  when you need to actually access the backup. So the compromise
+#  is to use the most obvious algorithm: AES-256-CBC.  It's a small
+#  trade-off security-wise, but the case for encryption here isn't
+#  overwhelming.  It seems way more likely that Camellia will become
+#  unsupported than someone will (a) want to break into your files and
+#  (b) be able to break AES-256.
+#
+#==================================================================
+
+crypto = require 'crypto'
+{status} = require './constants'
+
+#==================================================================
+
+secure_bufeq = (b1, b2) ->
+  ret = true
+  if b1.length isnt b2.length
+    ret = false
+  else
+    for b, i in b1
+      ret = false unless b is b2[i]
+  return ret
+
+#==================================================================
+
+bufsplit = (key, splits) ->
+  ret = []
+  start = 0
+  for s in splits
+    end = start + s
+    ret.push key[start...end]
+    start = end
+  ret.push key[start...]
+  ret
+
+#==================================================================
+
+class Algos
+
+  # Encode AES-256-CBC for encryption and HMAC-SHA-256 for
+  # hmac
+  @S = 
+    enc :
+      block : 16
+      key : 32
+    hmac :
+      key : 32
+      out : 32
+
+  #--------------------
+
+  @enc : (key) ->
+    iv = crypto.rng Algos.S.enc.block
+    cipher = crypto.createCipheriv 'aes-256-cbc', key, iv
+    { iv, cipher }
+
+  #--------------------
+
+  @dec : (key, iv) -> crypto.createDecipheriv 'aes-256-cbc', key, iv
+  @mac : (key) -> crypto.createHmac 'sha256', key
+
+  #--------------------
+
+  @iv_size : () -> Algos.S.enc.block
+  @mac_size : () -> Algos.S.hmac.out
+
+  # The minimum pad size with CBC! Somewhat of a hack, but eh!
+  @pad_size : () -> 1
+
+  #--------------------
+
+#==================================================================
+
+class Keys
+
+  @raw_length : () -> Algos.S.enc.key + Algos.S.hmac.key
+
+  #--------------------
+
+  constructor : (km) ->
+    [@enc, @mac] = bufsplit km, [ Algos.S.enc.key, Algos.S.hmac.key ]
+
+#==================================================================
+
+class Engine 
+  constructor : (@keys) ->
+
+  #--------------------
+
+  header_size : () -> Algos.iv_size()
+  footer_size : () -> Algos.mac_size()
+  metadata_size : () -> @header_size() + @footer_size() + Algos.pad_size()
+
+  #--------------------
+
+  # To get an output if output_size, you need to specify the given input_size.
+  input_size : (output_size) -> output_size - @metadata_size()
+
+  #--------------------
+
+  encrypt : (inblock) ->
+    { iv, cipher } = Algos.enc @keys.enc
+    mac = Algos.mac @keys.mac
+    blocks = [
+      iv,
+      cipher.update inblock
+      cipher.final()
+    ]
+    (mac.update b for b in blocks)
+    blocks.push mac.digest()
+    Buffer.concat blocks
+
+  #--------------------
+
+  decrypt : (inblock) ->
+    rc = status.OK
+    block = null
+    
+    if inblock.length < @metadata_size() then rc = status.E_BAD_SIZE
+    else
+      bodlen = inblock.length - @header_size() - @footer_size()
+      splits = [ @header_size(), bodlen ]
+      [iv,body,given_mac] = bufsplit inblock, splits
+
+      macer = Algos.mac @keys.mac
+      macer.update iv
+      macer.update body
+      computed_mac = macer.digest()
+
+      if not secure_bufeq computed_mac, given_mac
+        rc = status.E_BAD_MAC
+      else
+        dec = Algos.dec @keys.enc, iv
+        block = Buffer.concat [ dec.update(body), dec.final() ]
+    {rc, block}
+
+#==================================================================
+
+keys = new Keys crypto.rng Keys.raw_length()
+console.log keys
+data = ("hello hi how #{i}" for i in [0..100]).join "|"
+eng = new Engine keys
+eblock = eng.encrypt new Buffer(data, 'utf8')
+console.log data.length
+console.log eblock.length
+console.log eblock
+{rc, block} = eng.decrypt eblock
+console.log rc
+console.log block.toString()
+if data isnt block.toString()
+  console.log "Fucked it up!"

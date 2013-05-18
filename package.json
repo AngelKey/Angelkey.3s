@@ -37,6 +37,10 @@
     "framed-msgpack-rpc" : "*",
     "mkdirp"             : "*",
     "daemon"             : "*",
-    "winston"            : "*"
+    "winston"            : "*",
+    "iced-test"          : "*"
+   },
+   "devDependencies" : {
+    "optimist"           : "*"
   }
 }
