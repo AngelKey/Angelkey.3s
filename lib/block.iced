@@ -100,14 +100,17 @@ exports.Engine = class Engine
 
   #--------------------
 
-  header_size : () -> Algos.iv_size()
-  footer_size : () -> Algos.mac_size()
-  metadata_size : () -> @header_size() + @footer_size() + Algos.pad_size()
+  @header_size : () -> Algos.iv_size()
+  @footer_size : () -> Algos.mac_size()
+  @metadata_size : () -> Engine.header_size() + Engine.footer_size() + Algos.pad_size()
 
   #--------------------
 
-  # To get an output if output_size, you need to specify the given input_size.
-  input_size : (output_size) -> output_size - @metadata_size()
+  # The most possible input size you can squeeze into this output_size.
+  # Note, we make use of our knowledge of CBC padding here -- the cheapest
+  # block size is one that is 15 mod 16, and in that case, we only need 1 
+  # pad byte.
+  @input_size : (output_size) -> output_size - Engine.metadata_size()
 
   #--------------------
 
@@ -129,10 +132,10 @@ exports.Engine = class Engine
     rc = status.OK
     block = null
 
-    if inblock.length < @metadata_size() then rc = status.E_BAD_SIZE
+    if inblock.length < Engine.metadata_size() then rc = status.E_BAD_SIZE
     else
-      bodlen = inblock.length - @header_size() - @footer_size()
-      splits = [ @header_size(), bodlen ]
+      bodlen = inblock.length - Engine.header_size() - Engine.footer_size()
+      splits = [ Engine.header_size(), bodlen ]
       [iv,body,given_mac] = bufsplit inblock, splits
 
       macer = Algos.mac @keys.mac

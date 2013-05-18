@@ -1,5 +1,5 @@
 
-{Keys,Engine,secure_bufeq} = require '../../lib/block'
+{Keys,Engine,secure_bufeq,Algos} = require '../../lib/block'
 {rng,prng} = require 'crypto'
 {status} = require '../../lib/constants'
 
@@ -29,4 +29,17 @@ test = (T, psize, esize) ->
 
 exports.test_small_1 = (T, cb) ->
   test T, 15, 64
+  cb()
+
+exports.test_med_1 = (T, cb) ->
+  isize = 128
+  # an input of len 0mod16 incurs a full pad 
+  osize = isize + Algos.S.enc.block*2 + Algos.S.hmac.key
+  test T, isize, osize
+  cb()
+
+exports.test_full_1 = (T, cb) ->
+  osize = 1024*1024
+  isize = Engine.input_size osize
+  test T, isize, osize
   cb()
