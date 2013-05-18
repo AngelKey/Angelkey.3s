@@ -25,7 +25,7 @@ crypto = require 'crypto'
 
 #==================================================================
 
-secure_bufeq = (b1, b2) ->
+exports.secure_bufeq = secure_bufeq = (b1, b2) ->
   ret = true
   if b1.length isnt b2.length
     ret = false
@@ -36,7 +36,7 @@ secure_bufeq = (b1, b2) ->
 
 #==================================================================
 
-bufsplit = (key, splits) ->
+exports.bufsplit = bufsplit = (key, splits) ->
   ret = []
   start = 0
   for s in splits
@@ -48,7 +48,7 @@ bufsplit = (key, splits) ->
 
 #==================================================================
 
-class Algos
+exports.Algos = class Algos
 
   # Encode AES-256-CBC for encryption and HMAC-SHA-256 for
   # hmac
@@ -84,7 +84,7 @@ class Algos
 
 #==================================================================
 
-class Keys
+exports.Keys = class Keys
 
   @raw_length : () -> Algos.S.enc.key + Algos.S.hmac.key
 
@@ -95,7 +95,7 @@ class Keys
 
 #==================================================================
 
-class Engine 
+exports.Engine = class Engine 
   constructor : (@keys) ->
 
   #--------------------
@@ -128,7 +128,7 @@ class Engine
   decrypt : (inblock) ->
     rc = status.OK
     block = null
-    
+
     if inblock.length < @metadata_size() then rc = status.E_BAD_SIZE
     else
       bodlen = inblock.length - @header_size() - @footer_size()
@@ -145,20 +145,6 @@ class Engine
       else
         dec = Algos.dec @keys.enc, iv
         block = Buffer.concat [ dec.update(body), dec.final() ]
-    {rc, block}
+    [rc, block]
 
 #==================================================================
-
-keys = new Keys crypto.rng Keys.raw_length()
-console.log keys
-data = ("hello hi how #{i}" for i in [0..100]).join "|"
-eng = new Engine keys
-eblock = eng.encrypt new Buffer(data, 'utf8')
-console.log data.length
-console.log eblock.length
-console.log eblock
-{rc, block} = eng.decrypt eblock
-console.log rc
-console.log block.toString()
-if data isnt block.toString()
-  console.log "Fucked it up!"
