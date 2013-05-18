@@ -23,9 +23,25 @@ test = (T, psize, esize) ->
   [rc,pblock] = eng.decrypt eblock
   T.assert (rc is status.OK), "decryption failed w/ code #{rc}"
   T.assert (secure_bufeq pblock, input), "Failed to get out same block"
-  twiddle_byte eblock, 18
-  [rc,_] = eng.decrypt eblock
-  T.assert (rc is status.E_BAD_MAC), "mac should fail on corrupted block"
+
+  bad = new Buffer eblock
+  # Twiddle the first block of the ciphertext
+  twiddle_byte bad, Engine.header_size()
+  [rc,_] = eng.decrypt bad
+  T.assert (rc is status.E_BAD_MAC), "mac should fail on corrupted ciphertext"
+
+  bad = new Buffer eblock
+  # Twiddle the third block of the IV
+  twiddle_byte bad, 2
+  [rc,_] = eng.decrypt bad
+  T.assert (rc is status.E_BAD_MAC), "mac should fail on corrupted IV"
+
+  bad = new Buffer eblock
+  # Twiddle the last byte of the MAC
+  twiddle_byte bad, bad.length - 1
+  [rc,_] = eng.decrypt bad
+  T.assert (rc is status.E_BAD_MAC), "mac should fail on corrupted MAC"
+
 
 exports.test_small_1 = (T, cb) ->
   test T, 15, 64
