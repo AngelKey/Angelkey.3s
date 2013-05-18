@@ -3,8 +3,11 @@
 {rng,prng} = require 'crypto'
 {status} = require '../../lib/constants'
 
-twiddle_byte = (buf, i) ->
-  buf[i] = (buf[i] + 1) % 0x100
+#==================================================================
+
+twiddle_byte = (buf, i) -> buf[i] = (buf[i] + 1) % 0x100
+
+#==================================================================
 
 # Run a test:
 #  1. Generate a random block of length psize
@@ -42,6 +45,7 @@ test = (T, psize, esize) ->
   [rc,_] = eng.decrypt bad
   T.assert (rc is status.E_BAD_MAC), "mac should fail on corrupted MAC"
 
+#==================================================================
 
 exports.test_small_1 = (T, cb) ->
   test T, 15, 64
@@ -59,3 +63,5 @@ exports.test_full_1 = (T, cb) ->
   isize = Engine.input_size osize
   test T, isize, osize
   cb()
+
+#==================================================================
