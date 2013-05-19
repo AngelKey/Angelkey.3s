@@ -47,6 +47,10 @@ test = (T, psize, esize) ->
 
 #==================================================================
 
+exports.test_tiny_1 = (T, cb) ->
+  test T, 1, 64
+  cb()
+
 exports.test_small_1 = (T, cb) ->
   test T, 15, 64
   cb()

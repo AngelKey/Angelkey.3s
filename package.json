@@ -24,6 +24,9 @@
     "type": "git",
     "url": "git://github.com/maxtaco/mkb.git"
   },
+  "scripts" : {
+    "test" : "make test"
+  },
   "dependencies": {
     "iced-coffee-script" : "*",
     "progress"           : "*",
