@@ -1,5 +1,5 @@
 
-{Keys,Engine,secure_bufeq,Algos} = require '../../lib/block'
+{Keys,Engine,secure_bufeq,Algos} = require '../../lib/blockcrypt'
 {rng,prng} = require 'crypto'
 {status} = require '../../lib/constants'
 

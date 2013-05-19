@@ -1,5 +1,5 @@
 #
-# block.iced --- The crypto engine for working on a 1MB block of data.
+# blockcrypt.iced --- The crypto engine for working on a 1MB block of data.
 #
 #  Earlier versions of crypto in mkb used streaming crypto, and two
 #  different algorithms for encryption.  I think those were both mistakes.
