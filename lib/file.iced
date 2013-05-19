@@ -9,6 +9,7 @@ exports.Infile = class Infile
 
   constructor : ({@stat, @realpath, @filename, @fd}) ->
     @fd = -1 unless @fd?
+    @buf = null
 
   #------------------------
 
@@ -22,6 +23,19 @@ exports.Infile = class Infile
   size : () -> 
     throw new Error "file is not opened" unless @stat
     @stat.size
+
+  #------------------------
+
+  read : (offset, n, cb) ->
+    @buf = new Buffer size unless @buf and @buf.length is size
+    await fs.read @fd, @buf, 0, n, offset, defer err, br
+    if err?
+      log.error "Error reading #{@filename}/#{offset}-#{offset+n}: #{err}"
+    else if br isnt n
+      log.error "Short read: #{br} != #{n}"
+    else
+      ret = @buf
+    cb @buf
 
   #------------------------
 
