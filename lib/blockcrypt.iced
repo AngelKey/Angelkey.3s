@@ -25,6 +25,14 @@ crypto = require 'crypto'
 
 #==================================================================
 
+exports.bufeq = bufeq = (b1, b2) ->
+  return false unless b1.length is b2.length
+  for b, i in b1
+    return false unless b is b2[i]
+  return true
+
+#==================================================================
+
 exports.secure_bufeq = secure_bufeq = (b1, b2) ->
   ret = true
   if b1.length isnt b2.length
