@@ -8,6 +8,16 @@ crypto = require 'crypto'
 C = require 'constants'
 {make_esc} = require './err'
 
+#==================================================================
+
+msgpack_packed_numlen = (byt) ->
+  if      byt < 0x80  then 1
+  else if byt is 0xcc then 2
+  else if byt is 0xcd then 3
+  else if byt is 0xce then 5
+  else if byt is 0xcf then 9
+  else 0
+
 ##======================================================================
 
 exports.tmp_filename = tmp_filename = (stem) ->
@@ -167,6 +177,54 @@ pack2 = (o) ->
 
 ##======================================================================
 
+unpack2 = (rfn, cb) ->
+  esc = make_esc cb, "unpack"
+  out = null
+  err = null
+
+  await rfn 1, esc defer b0
+  framelen = msgpack_packed_numlen b0.bufer[0]
+
+  if framelen is 0
+    err = new Error "Bad msgpack len header: #{b.inspect()}"
+  else
+
+    if framelen > 1
+      # Read the rest out...
+      await rfn (framelen-1), esc defer b1
+      b = concat [b0, b1]
+    else
+      b = b0
+
+    # We've read the framing in two parts -- the first byte
+    # and then the rest
+    [err, frame] = purepack.unpack b
+
+    if err?
+      err = new Error "In reading msgpack frame: #{err}"
+    else if not (typeof(frame) is 'number')
+      err = new Error "Expected frame as a number: got #{frame}"
+    else 
+      await rfn frame, defer b
+      [err, out] = purepack.unpack b
+      err = new Error "In unpacking #{b.inspect()}: #{err}" if err?
+
+  cb err, out
+
+##======================================================================
+
+unpack2_from_buffer = (buf, cb) ->
+  rfn = (n, cb) ->
+    if n > buf.length then err = new Error "read out of bounds"
+    else 
+      ret = buf[0...n]
+      buf = buf[n...]
+    cb err, res
+  await unpack2 rfn, defer err, buf
+  cb err, but
+
+##======================================================================
+
 uint32 = (i) ->
   b = new Buffer 4
   b.writeUInt32BE i
@@ -210,15 +268,20 @@ exports.Decoder = class Decoder extends CoderBase
   #---------------------------
 
   _read_unpack : (cb) ->
-    await @infile.next 1, defer b0
+    esc = make_esc cb, "Decoder::_read_unpack"
+    out = null
+    err = null
+
+    await @infile.next 1, esc defer b0
     framelen = msgpack_packed_numlen b0.bufer[0]
+
     if framelen is 0
-      log.error "Bad msgpack len header: #{b.inspect()}"
+      err = new Error "Bad msgpack len header: #{b.inspect()}"
     else
 
       if framelen > 1
         # Read the rest out...
-        await @infile.next (framelen-1), defer b1
+        await @infile.next (framelen-1), esc defer b1
         b = concat [b0, b1]
       else
         b = b0
@@ -228,24 +291,62 @@ exports.Decoder = class Decoder extends CoderBase
       [err, frame] = purepack.unpack b
 
       if err?
-        log.error "In reading msgpack frame: #{err}"
+        err = new Error "In reading msgpack frame: #{err}"
       else if not (typeof(frame) is 'number')
-        log.error "Expected frame as a number: got #{frame}"
+        err = new Error "Expected frame as a number: got #{frame}"
       else 
         await @infile.next frame, defer b
         [err, out] = purepack.unpack b
-        log.error "In unpacking #{b.inspect()}: #{err}" if err?
-    cb out
+        err = new Error "In unpacking #{b.inspect()}: #{err}" if err?
+
+    cb err, out
+
+  #---------------------------
+
+  _read_premable : (cb) ->
+    p = CoderBase.preamble()
+    await @infile.next p.length, defer err, raw
+
+    err = if err? then err
+    else if not bufeq raw.buf, p then new Error "Premable mismatch/bad magic"
+    else null
+    cb err
+
+  #---------------------------
+
+  _read_unpack : (cb) ->
+    rfn = (i, cb) => @input.next i, cb
+    await unpack2 rfn, defer err, obj
+    cb err, obj
+
+  #---------------------------
+
+  _read_metadata : (cb) ->
+    await @_read_unpack esc defer @hdr
+    fields = [ "statsize", "filesize", "encrypt", "blocksize" ]
+    f = []
+    for f in fields 
+      missing.push f if not @hdr[f]?
+    err = new Error "malformed header; missing #{JSON.stringify f}" if f.length
+    cb err
+
+  #---------------------------
+
+  _read_encrypted_stat : (cb) ->
+    await @infile.next @hdr.statsize, defer err, raw
+    [err, block] = @filt raw unless err?
+    [err, @stat] = unless err?
+
+    cb err
 
   #---------------------------
 
   _read_header : (cb) ->
-    p = CoderBase.preamble()
-    await @infile.next p.length, defer raw
-    if raw? and not bufeq raw.buf, p
-      log.error "Premable mismatch/bad magic"
-    else
-      await @_read_unpack defer obj
+    esc = make_esc cb, "Decoder::_read_header"
+    await @_read_premable esc defer()
+    await @_read_metadata esc defer()
+    await @_read_encrypted_stat esc defer()
+    cb null
 
   #--------------
 
@@ -260,7 +361,7 @@ exports.Encoder = class Encoder extends CoderBase
 
   #--------------
   
-  clear_header : (statsize, filesize) ->
+  metadata : (statsize, filesize) ->
     encrypt = @encflag()
     pack2 { statsize, filesize, encrypt, @blocksize }
 
@@ -270,7 +371,7 @@ exports.Encoder = class Encoder extends CoderBase
     estat = @filt pack2 @infile.stat
     concat [
       CoderBase.premable()
-      @clear_header estat.length, @infile.stat.size
+      @metadata estat.length, @infile.stat.size
       estat
     ]
 
