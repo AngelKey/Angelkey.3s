@@ -159,7 +159,7 @@ exports.Infile = class Infile extends BaseFile
 
   open : (cb) ->
     esc = make_esc cb, "Infile::open"
-    await fs.open @filename, flags, esc defer, @fd
+    await fs.open @filename, flags, esc defer @fd
     await fs.fstat @fd, esc defer @stat
     await file.realpath esc defer @realpath
     cb null
@@ -267,42 +267,6 @@ exports.Decoder = class Decoder extends CoderBase
 
   #---------------------------
 
-  _read_unpack : (cb) ->
-    esc = make_esc cb, "Decoder::_read_unpack"
-    out = null
-    err = null
-
-    await @infile.next 1, esc defer b0
-    framelen = msgpack_packed_numlen b0.bufer[0]
-
-    if framelen is 0
-      err = new Error "Bad msgpack len header: #{b.inspect()}"
-    else
-
-      if framelen > 1
-        # Read the rest out...
-        await @infile.next (framelen-1), esc defer b1
-        b = concat [b0, b1]
-      else
-        b = b0
-
-      # We've read the framing in two parts -- the first byte
-      # and then the rest
-      [err, frame] = purepack.unpack b
-
-      if err?
-        err = new Error "In reading msgpack frame: #{err}"
-      else if not (typeof(frame) is 'number')
-        err = new Error "Expected frame as a number: got #{frame}"
-      else 
-        await @infile.next frame, defer b
-        [err, out] = purepack.unpack b
-        err = new Error "In unpacking #{b.inspect()}: #{err}" if err?
-
-    cb err, out
-
-  #---------------------------
-
   _read_premable : (cb) ->
     p = CoderBase.preamble()
     await @infile.next p.length, defer err, raw
@@ -335,8 +299,7 @@ exports.Decoder = class Decoder extends CoderBase
   _read_encrypted_stat : (cb) ->
     await @infile.next @hdr.statsize, defer err, raw
     [err, block] = @filt raw unless err?
-    [err, @stat] = unless err?
-
+    [err, @stat] = unpack2_from_buffer block unless err?
     cb err
 
   #---------------------------
