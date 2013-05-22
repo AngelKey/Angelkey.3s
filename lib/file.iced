@@ -2,7 +2,7 @@
 fs = require 'fs'
 blockcrypt  = require './blockcrypt'
 log = require './log'
-{constants} = require './constants'
+{constants,error,status} = require './constants'
 base58 = require './base58'
 crypto = require 'crypto'
 C = require 'constants'
@@ -33,6 +33,10 @@ exports.BaseFile = class BaseFile
   constructor : ({@fd}) ->
     @fd = -1 unless @fd?
     @i = 0
+
+  #------------------------
+
+  offset : () -> @i
 
   #------------------------
 
@@ -113,7 +117,17 @@ exports.Block = class Block
 
   constructor : ({@buf, @offset}) ->
 
-  encrypt : (eng) -> new Block { buf : eng.encrypt(@buf), @offset }
+  encrypt : (eng) -> [null, new Block { buf : eng.encrypt(@buf), @offset } ]
+
+  decrypt : (eng) ->
+    [rc, buf] = eng.decrypt @buf
+    out = null
+    err = null
+    if rc is sc.OK and buf?
+      out = new Block { buf, @offset }
+    else
+      err = new Error "decryption err: #{error.to_string rc}"
+    [ err , out ]
 
 ##======================================================================
 
@@ -239,13 +253,11 @@ class CoderBase
   constructor : ({@keys, @infile, @outfile, @blocksize}) ->
     @blocksize = 1024*1024 unless @blocksize?
     @eof = false
-    @err = true
-    @ok = false
     @opos = 0
 
   #-------------------------
 
-  more_to_go : () -> not @eof and not @err
+  more_to_go : () -> not @eof
 
   #--------------
 
@@ -255,6 +267,38 @@ class CoderBase
       H.FILE_MAGIC
       uint32 H.FILE_VERSION
     ]
+
+  #--------------
+
+  run : (cb) ->
+    esc = make_esc cb, "CoderBase::run"
+    await @first_block esc defer()
+    bs = @sizer @blocksize
+    while @more_to_go()
+      await @read bs, esc defer block
+      if block?
+        block.offset = @opos
+        await @write block, esc defer()
+        @opos += block.buf.length
+    cb null
+
+  #--------------
+
+  write : (buf, cb) -> 
+    await @outfile.write buf, defer err
+    if err?
+      log.error err
+    cb err
+
+ #--------------
+
+  read : (i, cb) ->
+    await @input.next i, defer err, iblock, @eof
+    if err?
+      log.error err
+    else if @oblock?
+      [err, oblock] = @filt iblock 
+    cb err, oblock
 
 ##======================================================================
 
@@ -313,6 +357,28 @@ exports.Decoder = class Decoder extends CoderBase
 
   #--------------
 
+  _read_first_block : (cb) ->
+    @blocksize = @hdr.blocksize
+    rem_off = @infile.offset()
+    err = null
+    if rem_off > @blocksize 
+      err = new Error "header was too big! #{rem_off} > #{@blocksize}"
+    else
+      rem_size = @blocksize - rem_off
+      await @infile.next rem_size, defer err, block
+      [err, block] = @filt block unless err?
+      block.offset = 0
+      await @write block, defer err
+      @opos = block.length
+    cb err
+
+  #--------------
+
+  first_block : (cb) ->
+    await @_read_header defer err
+    await @_read_first_block defer err unless err?
+    cb err
+
 ##======================================================================
 
 exports.Encoder = class Encoder extends CoderBase
@@ -331,7 +397,7 @@ exports.Encoder = class Encoder extends CoderBase
   #--------------
   
   header : () ->
-    estat = @filt pack2 @infile.stat
+    [_, estat ] = @filt pack2 @infile.stat
     concat [
       CoderBase.premable()
       @metadata estat.length, @infile.stat.size
@@ -339,54 +405,23 @@ exports.Encoder = class Encoder extends CoderBase
     ]
 
   #--------------
-
-  read : (i, cb) ->
-    await @input.next i, defer err, iblock, @eof
-    if err?
-      @err = true
-      log.error err
-    else oblock = @filt iblock if oblock?
-    cb oblock
-
-  #--------------
-
-  write : (buf, cb) -> 
-    await @outfile.write buf, defer err
-    if err?
-      log.error err
-      @err = true
-    cb()
-
-  #--------------
-
-  run : (cb) ->
-    await @first_block defer()
-    bs = @sizer @blocksize
-    while @more_to_go()
-      await @read bs, defer block
-      if block?
-        block.offset = @opos
-        await @write block, defer()
-        @opos += block.buf.length
-    cb @ok
-
-  #--------------
   
   first_block : (cb) ->
+    err = null
     hdr = @header()
     if hdr.length > @blocksize
-      log.error "First block is too big!! #{hdr.length} > #{@blocksize}"
-      @ok = false
+      err = new Error "First block is too big!! #{hdr.length} > #{@blocksize}"
+      log.error err
     else
       rem_osize = @blocksize - hdr.length
       rem_isize = @sizer rem_osize
-      await @read rem_isize, defer rem_block
-    if @ok
+      await @read rem_isize, defer err, rem_block
+    unless err?
       buf = concat [ hdr, rem_block.buf ]
       block = new Block { buf, offset : 0 }
-      await @write block, defer()
+      await @write block, defer err
       @opos = @block.length
-    cb()
+    cb err
 
 ##======================================================================
 
@@ -395,7 +430,7 @@ exports.PlainEncoder = class PlainEncoder extends Encoder
   constructor : ({@keys, @infile, @outfile, @blocksize}) ->
     super()
 
-  infilt : (x) -> x
+  filt : (x) -> [ null, x ]
   sizer : (x) -> x
   encflag : -> 0
 
@@ -410,5 +445,16 @@ exports.Encryptor = class Encryptor extends Encoder
   filt : (x) -> x.encrypt @block_engine
   sizer  : (x) -> blockcrypt.Engine.input_size x
   encflag : -> 1
+
+##======================================================================
+
+exports.Decryptor = class Decryptor extends Decoder
+
+  constructor : ({@keys, @infile, @outfile}) ->
+    super()
+    @block_engine = new blockcrypt.Engine @keys
+
+  filt : (x) -> x.decrypt @block_engine
+  sizer  : (x) -> x
 
 ##======================================================================
