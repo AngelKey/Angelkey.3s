@@ -16,7 +16,7 @@ make_errors = () ->
     E_INVAL : [ 101, "Invalid value" ]
     E_NOT_FOUND : [ 102, "Not found" ]
     E_QUERY : [ 103, "Bad query" ]
-    E_DUPLICATE [ 104, "Duplicated value" ]
+    E_DUPLICATE : [ 104, "Duplicated value" ]
     E_BAD_MAC : [ 105, "Message authentication failure" ]
     E_BAD_SIZE : [ 106, "Wrong size" ]
 

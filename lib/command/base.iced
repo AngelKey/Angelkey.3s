@@ -10,6 +10,7 @@ myfs = require '../fs'
 fs = require 'fs'
 {rmkey} = require '../util'
 {add_option_dict} = require './argparse'
+{Infile, Outfile} = require '../file'
 
 #=========================================================================
 
@@ -102,8 +103,8 @@ exports.Base = class Base
   #----------------
 
   base_open_input : (fn, cb) ->
-    await myfs.open { filename : fn }, defer err, input
-    cb err, input
+    await Infile.open fn, defer err, file
+    cb err, file
 
 #=========================================================================
 
@@ -138,17 +139,8 @@ exports.CipherBase = class CipherBase extends Base
   #-----------------
 
   open_output : (cb) ->
-    ok = true
-    if (ofn = @output_filename())?
-      @outfn = ofn
-      tmpfn = myfs.tmp_filename @outfn
-      await myfs.open { filename : tmpfn, write : true }, defer err, output
-      if err?
-        log.error "Error opening temp outfile #{tmpfn}: #{err}"
-        ok = false
-    else 
-      output = myfs.stdout()
-    cb ok, output
+    await Outfile.open { target, @output_filename() },  defer err, output
+    cb err, output
 
   #-----------------
 
@@ -203,7 +195,10 @@ exports.CipherBase = class CipherBase extends Base
         log.error "In opening input file: #{err}"
         ok = false
     if ok
-      await @open_output defer ok, @output
+      await @open_output defer err, @output
+      if err?
+        log.error "In opening output file: #{err}"
+        ok = false
     cb ok
   
   #-----------------

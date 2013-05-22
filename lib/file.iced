@@ -48,12 +48,40 @@ exports.BaseFile = class BaseFile
 
 ##======================================================================
 
+exports.Stdout = class Stdout extends Basefile
+
+  constructor : () ->
+    @filename = "<stdout>"
+    @pos = 0
+    @stream = process.stdout
+
+  _open : (cb) -> cb null
+
+  @open : ({}, cb) ->
+    file = new Stdout()
+    cb err, file
+
+  finish : (cb) ->
+    await @stream.end defer err
+    cb err
+
+  write : (block, cb) ->
+    if block.offset isnt @pos
+      err = new Error "Can't seek stdout"
+    else
+      await @stream.write block.buf, null, defer err
+      @pos += block.buf.length
+    cb err
+
+##======================================================================
+
 exports.Outfile = class Outfile extends BaseFile
 
   #------------------------
 
   constructor : ({@target, @mode}) ->
     super({})
+    @mode = 0o644 unless @mode?
     @tmpname = tmp_filename @target
     @renamed = false
     @buf = null
@@ -61,7 +89,16 @@ exports.Outfile = class Outfile extends BaseFile
 
   #------------------------
 
-  open : (cb) ->
+  @open : ({target, mode}) ->
+    file = if target? then new Outfile { target, mode }
+    else new Stdout {}
+    await file._open defer err
+    file = null if err?
+    cb err, file
+
+  #------------------------
+
+  _open : (cb) ->
     esc = make_esc cb, "Outfile::open"
     flags = (C.O_WRONLY | C.O_TRUNC | C.O_EXCL | C.O_CREAT)
     await fs.open @tmpname, flags, mode, esc defer @fd
@@ -171,8 +208,16 @@ exports.Infile = class Infile extends BaseFile
 
   #------------------------
 
-  open : (cb) ->
-    esc = make_esc cb, "Infile::open"
+  @open : (filename, cb) ->
+    file = new Infile {filename}
+    await file._open defer err
+    file = null if err?
+    cb err, file
+
+  #------------------------
+
+  _open : (cb) ->
+    esc = make_esc cb, "Infile::_open"
     await fs.open @filename, flags, esc defer @fd
     await fs.fstat @fd, esc defer @stat
     await file.realpath esc defer @realpath
@@ -427,7 +472,7 @@ exports.Encoder = class Encoder extends CoderBase
 
 exports.PlainEncoder = class PlainEncoder extends Encoder
 
-  constructor : ({@keys, @infile, @outfile, @blocksize}) ->
+  constructor : ({@infile, @outfile, @blocksize}) ->
     super()
 
   filt : (x) -> [ null, x ]
@@ -454,7 +499,16 @@ exports.Decryptor = class Decryptor extends Decoder
     super()
     @block_engine = new blockcrypt.Engine @keys
 
-  filt : (x) -> x.decrypt @block_engine
+  filt   : (x) -> x.decrypt @block_engine
+  sizer  : (x) -> x
+
+##======================================================================
+
+exports.PlainDecoder = class Decryptor extends Decoder
+
+  constructor : ({infile, @outfile}) ->
+    super()
+  filt   : (x) -> [ null, x ]
   sizer  : (x) -> x
 
 ##======================================================================
