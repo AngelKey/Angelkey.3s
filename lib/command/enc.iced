@@ -14,6 +14,7 @@ exports.Command = class Command extends CipherBase
   #-----------------
 
   make_eng : (d) -> new Encryptor d
+  is_enc : -> true
   
   #-----------------
  

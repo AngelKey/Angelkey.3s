@@ -123,6 +123,7 @@ exports.CipherBase = class CipherBase extends Base
   #-----------------
 
   need_aws : -> false
+  is_enc : -> false
 
   #-----------------
 
@@ -149,9 +150,10 @@ exports.CipherBase = class CipherBase extends Base
   init : (cb) ->
     esc = new EscOk cb
     await super esc.check_ok defer()
-    await Infile.open @argv.file[0], esc.check_err defer @infile
+    @infn = @argv.file[0]
+    await Infile.open @infn, esc.check_err defer @infile
     await Outfile.open { target : @output_filename() }, esc.check_err defer @outfile
-    await @derive_keys esc.check_non_null defer @keys
+    await @pwmgr.derive_keys @is_enc(), esc.check_non_null defer @keys
     cb true
   
   #-----------------

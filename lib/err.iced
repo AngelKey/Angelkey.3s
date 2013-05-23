@@ -22,22 +22,22 @@ exports.EscOk = class EscOk
     if @gcb
       t = @gcb
       @gcb = null
-      t ok
+      t false
 
   check_ok : (cb) ->
-    (ok, args...) ->
+    (ok, args...) =>
       if not ok then @bailout()
       else cb args...
 
   check_err : (cb) ->
-    (err, args...) ->
+    (err, args...) =>
       if err?
         log.error err
         @bailout()
       else cb args...
 
   check_non_null : (cb) ->
-    (a0, args...) ->
+    (a0, args...) =>
       if not a0? then @bailout()
       else cb args...
 
