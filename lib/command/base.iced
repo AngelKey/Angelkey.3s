@@ -10,7 +10,8 @@ myfs = require '../fs'
 fs = require 'fs'
 {rmkey} = require '../util'
 {add_option_dict} = require './argparse'
-{Infile, Outfile} = require '../file'
+{Infile, Outfile, Encryptor} = require '../file'
+{EscOk} = require '../err'
 
 #=========================================================================
 
@@ -100,11 +101,6 @@ exports.Base = class Base
   salt     : () -> pick @argv.salt, @config.salt()
   salt_or_email : () -> pick @salt(), @email()
 
-  #----------------
-
-  base_open_input : (fn, cb) ->
-    await Infile.open fn, defer err, file
-    cb err, file
 
 #=========================================================================
 
@@ -138,68 +134,25 @@ exports.CipherBase = class CipherBase extends Base
 
   #-----------------
 
-  open_output : (cb) ->
-    await Outfile.open { target, @output_filename() },  defer err, output
-    cb err, output
-
-  #-----------------
-
   # Maybe eventually decryption can do something here...
   patch_file_metadata : (cb) -> cb()
 
   #-----------------
 
-  cleanup_on_success : (cb) ->
-    await fs.rename @output.filename, @outfn, defer err
-    ok = true
-    if err?
-      log.error "Problem in file rename: #{err}"
-      ok = false
-    if ok and @argv.r
-      await fs.unlink @input.filename, defer err
-      if err?
-        log.error "Error in removing original file #{@input.file}: #{err}"
-        ok = false
-    if ok
-      await @patch_file_metadata defer()
-    cb ok
-    
-  #-----------------
-
-  cleanup_on_failure : (cb) ->
-    ok = true
-    await fs.unlink @output.tmpfn, defer err
-    if err?
-      log.warn "cannot remove temporary file #{@output.tmpfn}: #{err}"
-      ok = false
-    cb ok
-
-  #-----------------
-
   cleanup : (ok, cb) ->
-    if ok 
-      await @cleanup_on_success defer ok
-    else
-      @output?.close()
-      @input?.close()
-      await @cleanup_on_failure defer()
+    await @outfile.finish ok, defer() if @outfile?
+    await @infile.finish ok, defer() if @infile?
     cb()
 
   #-----------------
 
   init : (cb) ->
-    await super defer ok
-    if ok
-      await @base_open_input argv.file[0], defer err, @input
-      if err?
-        log.error "In opening input file: #{err}"
-        ok = false
-    if ok
-      await @open_output defer err, @output
-      if err?
-        log.error "In opening output file: #{err}"
-        ok = false
-    cb ok
+    esc = new EscOk cb
+    await super esc.check_ok defer()
+    await Infile.open @argv.file[0], esc.check_err defer @infile
+    await Outfile.open { target : @output_filename() }, esc.check_err defer @outfile
+    await @derive_keys esc.check_non_null defer @keys
+    cb true
   
   #-----------------
 
@@ -222,27 +175,13 @@ exports.CipherBase = class CipherBase extends Base
 
   run : (cb) ->
     await @init defer ok
-
-    opened = false
-
-    if ok
-      opened = true
-      @eng = @make_eng { @pwmgr, stat : @input.stat }
-      await @eng.init defer ok
-      if not ok
-        log.error "Could not setup keys for encryption/decryption"
-
-    if ok
-      @input.stream.pipe(@eng).pipe(@output.stream)
-      await @input.stream.once 'end', defer()
-      await @output.stream.once 'finish', defer()
-
-    if ok
-      [ok, err] = @eng.validate()
-      if not ok
-        log.error "Final validation error: #{err}"
-
-    await @cleanup ok, defer() if opened
+    if ok 
+      eng = @make_eng { @keys, @infile, @outfile }
+      await eng.run defer err
+      if err?
+        log.error err
+        ok = false
+    await @cleanup ok, defer()
     cb ok
 
 #=========================================================================

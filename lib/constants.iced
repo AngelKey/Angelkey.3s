@@ -27,7 +27,7 @@ make_errors = () ->
   exports.status = codes
   exports.errors = {
     lookup : reverse
-    to_string : (i) -> reverse[i]?.[1]
+    to_string : (i) -> reverse[i]?[1]
   }
 
 make_errors()

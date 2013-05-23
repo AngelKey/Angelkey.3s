@@ -26,7 +26,7 @@ exports.tmp_filename = tmp_filename = (stem) ->
 
 ##======================================================================
 
-exports.BaseFile = class BaseFile
+exports.Basefile = class Basefile
 
   #------------------------
 
@@ -61,7 +61,7 @@ exports.Stdout = class Stdout extends Basefile
     file = new Stdout()
     cb err, file
 
-  finish : (cb) ->
+  finish : (ok, cb) ->
     await @stream.end defer err
     cb err
 
@@ -75,7 +75,7 @@ exports.Stdout = class Stdout extends Basefile
 
 ##======================================================================
 
-exports.Outfile = class Outfile extends BaseFile
+exports.Outfile = class Outfile extends Basefile
 
   #------------------------
 
@@ -89,7 +89,7 @@ exports.Outfile = class Outfile extends BaseFile
 
   #------------------------
 
-  @open : ({target, mode}) ->
+  @open : ({target, mode}, cb) ->
     file = if target? then new Outfile { target, mode }
     else new Stdout {}
     await file._open defer err
@@ -99,9 +99,9 @@ exports.Outfile = class Outfile extends BaseFile
   #------------------------
 
   _open : (cb) ->
-    esc = make_esc cb, "Outfile::open"
+    esc = make_esc cb, "Open #{@target} for writing"
     flags = (C.O_WRONLY | C.O_TRUNC | C.O_EXCL | C.O_CREAT)
-    await fs.open @tmpname, flags, mode, esc defer @fd
+    await fs.open @tmpname, flags, @mode, esc defer @fd
     await fs.realpath @tmpname, esc defer @realpath
     cb null
 
@@ -117,10 +117,10 @@ exports.Outfile = class Outfile extends BaseFile
 
   #------------------------
 
-  finish : (cb) ->
+  finish : (success, cb) ->
     @close()
-    await @_rename defer()
-    await @_clenaup defer()
+    await @_rename defer() if @success
+    await @_cleanup defer()
     cb()
 
   #------------------------
@@ -140,10 +140,10 @@ exports.Outfile = class Outfile extends BaseFile
     ok = false
     l = block.buf.length
     b = block.buf
-    off = block.offset
-    await fs.write @fd, b, 0, l, off, defer err, nw
+    o = block.offset
+    await fs.write @fd, b, 0, l, o, defer err, nw
     if err?
-      err = new Error "In writing #{@tmpname}@#{off}: #{err}"
+      err = new Error "In writing #{@tmpname}@#{o}: #{err}"
     else if nw isnt l 
       err = new Error "Short write in #{@tmpname}: #{nw} != #{l}"
     cb err
@@ -168,7 +168,7 @@ exports.Block = class Block
 
 ##======================================================================
 
-exports.Infile = class Infile extends BaseFile
+exports.Infile = class Infile extends Basefile
 
   constructor : ({@stat, @realpath, @filename, @fd}) ->
     super { @fd }
@@ -216,11 +216,18 @@ exports.Infile = class Infile extends BaseFile
 
   #------------------------
 
+  finish : (ok, cb) ->
+    @close()
+    cb null
+
+  #------------------------
+
   _open : (cb) ->
-    esc = make_esc cb, "Infile::_open"
+    esc = make_esc cb, "Open #{@filename}"
+    flags = C.O_RDONLY
     await fs.open @filename, flags, esc defer @fd
     await fs.fstat @fd, esc defer @stat
-    await file.realpath esc defer @realpath
+    await fs.realpath @filename, esc defer @realpath
     cb null
 
 #==================================================================
