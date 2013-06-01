@@ -120,7 +120,7 @@ exports.Outfile = class Outfile extends Basefile
 
   finish : (success, cb) ->
     @close()
-    await @_rename defer() if @success
+    await @_rename defer() if success
     await @_cleanup defer()
     cb()
 
@@ -155,6 +155,8 @@ exports.Block = class Block
 
   constructor : ({@buf, @offset}) ->
 
+  len : () -> if @buf then @buf.length else 0
+
   encrypt : (eng) -> [null, new Block { buf : eng.encrypt(@buf), @offset } ]
 
   decrypt : (eng) ->
@@ -186,7 +188,7 @@ exports.Infile = class Infile extends Basefile
 
   read : (offset, n, cb) ->
     ret = null
-    @buf = new Buffer n unless @buf?.length >= n
+    @buf = new Buffer n unless @buf?.length is n
     await fs.read @fd, @buf, 0, n, offset, defer err, br
     if err? 
       err = new Error "#{@filename}/#{offset}-#{offset+n}: #{err}"
@@ -199,13 +201,19 @@ exports.Infile = class Infile extends Basefile
   #------------------------
 
   next : (n, cb) ->
+    eof = false
+    if (rem = @stat.size - @i) < n 
+      n = rem
+      eof = true
+    console.log n
+    console.log rem
     await @read @i, n, defer err, block
     if block?
-      @i += buf.length
-      @eof = @i >= @stat.length
+      @i += block.len()
     else
-      @eof = true
-    cb err, block, @eof
+      eof = true
+    @eof = eof
+    cb err, block, eof
 
   #------------------------
 
@@ -333,7 +341,7 @@ class CoderBase
       if block?
         block.offset = @opos
         await @write block, esc defer()
-        @opos += block.buf.length
+        @opos += block.len()
     cb null
 
   #--------------
@@ -474,7 +482,7 @@ exports.Encoder = class Encoder extends CoderBase
       buf = concat [ hdr, rem_block.buf ]
       block = new Block { buf, offset : 0 }
       await @write block, defer err
-      @opos = @block.length
+      @opos = block.len()
     cb err
 
 ##======================================================================
