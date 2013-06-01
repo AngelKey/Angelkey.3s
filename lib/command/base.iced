@@ -180,8 +180,6 @@ exports.CipherBase = class CipherBase extends Base
     if ok 
       eng = @make_eng { @keys, @infile, @outfile }
       await eng.run defer err
-      console.log "engine done!"
-      console.log err
       if err?
         log.error err
         ok = false

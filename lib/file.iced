@@ -205,8 +205,6 @@ exports.Infile = class Infile extends Basefile
     if (rem = @stat.size - @i) < n 
       n = rem
       eof = true
-    console.log n
-    console.log rem
     await @read @i, n, defer err, block
     if block?
       @i += block.len()
