@@ -186,7 +186,7 @@ exports.Infile = class Infile extends Basefile
 
   read : (offset, n, cb) ->
     ret = null
-    @buf = new Buffer size unless @buf and @buf.length is size
+    @buf = new Buffer n unless @buf?.length >= n
     await fs.read @fd, @buf, 0, n, offset, defer err, br
     if err? 
       err = new Error "#{@filename}/#{offset}-#{offset+n}: #{err}"
@@ -205,7 +205,7 @@ exports.Infile = class Infile extends Basefile
       @eof = @i >= @stat.length
     else
       @eof = true
-    cb err, block, eof
+    cb err, block, @eof
 
   #------------------------
 
