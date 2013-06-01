@@ -198,7 +198,7 @@ exports.CipherBase = class CipherBase extends Base
   init : (cb) ->
     await super defer ok
     if ok
-      await @base_open_input argv.file[0], defer err, @input
+      await @base_open_input @argv.file[0], defer err, @input
       if err?
         log.error "In opening input file: #{err}"
         ok = false
