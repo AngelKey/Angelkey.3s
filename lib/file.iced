@@ -233,7 +233,8 @@ exports.Infile = class Infile extends Basefile
 
 #==================================================================
 
-concat = (lst) -> Buffer.concat lst
+concat = (lst) ->
+  Buffer.concat lst
 
 #==================================================================
 
@@ -294,7 +295,7 @@ unpack2_from_buffer = (buf, cb) ->
 
 uint32 = (i) ->
   b = new Buffer 4
-  b.writeUInt32BE i
+  b.writeUInt32BE i, 0
   b
 
 ##======================================================================
@@ -314,10 +315,10 @@ class CoderBase
 
   #--------------
 
-  @premable : () ->
+  @preamble : () ->
     H = constants.Header
     concat [
-      H.FILE_MAGIC
+      new Buffer H.FILE_MAGIC
       uint32 H.FILE_VERSION
     ]
 
@@ -346,10 +347,10 @@ class CoderBase
  #--------------
 
   read : (i, cb) ->
-    await @input.next i, defer err, iblock, @eof
+    await @infile.next i, defer err, iblock, @eof
     if err?
       log.error err
-    else if @oblock?
+    else if iblock?
       [err, oblock] = @filt iblock 
     cb err, oblock
 
@@ -364,7 +365,7 @@ exports.Decoder = class Decoder extends CoderBase
 
   #---------------------------
 
-  _read_premable : (cb) ->
+  _read_preamble : (cb) ->
     p = CoderBase.preamble()
     await @infile.next p.length, defer err, raw
 
@@ -376,7 +377,7 @@ exports.Decoder = class Decoder extends CoderBase
   #---------------------------
 
   _read_unpack : (cb) ->
-    rfn = (i, cb) => @input.next i, cb
+    rfn = (i, cb) => @infile.next i, cb
     await unpack2 rfn, defer err, obj
     cb err, obj
 
@@ -403,7 +404,7 @@ exports.Decoder = class Decoder extends CoderBase
 
   _read_header : (cb) ->
     esc = make_esc cb, "Decoder::_read_header"
-    await @_read_premable esc defer()
+    await @_read_preamble esc defer()
     await @_read_metadata esc defer()
     await @_read_encrypted_stat esc defer()
     cb null
@@ -450,11 +451,11 @@ exports.Encoder = class Encoder extends CoderBase
   #--------------
   
   header : () ->
-    [_, estat ] = @filt pack2 @infile.stat
+    [_, estat ] = @filt new Block { buf : pack2(@infile.stat), offset : -1 }
     concat [
-      CoderBase.premable()
+      CoderBase.preamble()
       @metadata estat.length, @infile.stat.size
-      estat
+      estat.buf
     ]
 
   #--------------
@@ -495,7 +496,7 @@ exports.Encryptor = class Encryptor extends Encoder
     super({@keys, @infile, @outfile, @blocksize})
     @block_engine = new blockcrypt.Engine @keys
 
-  filt : (x) -> x.encrypt @block_engine
+  filt : (x) -> x.encrypt(@block_engine) 
   sizer  : (x) -> blockcrypt.Engine.input_size x
   encflag : -> 1
 
@@ -507,7 +508,7 @@ exports.Decryptor = class Decryptor extends Decoder
     super()
     @block_engine = new blockcrypt.Engine @keys
 
-  filt   : (x) -> x.decrypt @block_engine
+  filt   : (x) -> x.decrypt(@block_engine)
   sizer  : (x) -> x
 
 ##======================================================================
