@@ -11,6 +11,10 @@ purepack = require 'purepack'
 
 #==================================================================
 
+{bufeq,secure_bufeq} = blockcrypt
+
+#==================================================================
+
 msgpack_packed_numlen = (byt) ->
   if      byt < 0x80  then 1
   else if byt is 0xcc then 2
@@ -257,10 +261,10 @@ unpack2 = (rfn, cb) ->
   err = null
 
   await rfn 1, esc defer b0
-  framelen = msgpack_packed_numlen b0.bufer[0]
+  framelen = msgpack_packed_numlen b0[0]
 
   if framelen is 0
-    err = new Error "Bad msgpack len header: #{b.inspect()}"
+    err = new Error "Bad msgpack len header: #{b0.inspect()}"
   else
 
     if framelen > 1
@@ -279,7 +283,7 @@ unpack2 = (rfn, cb) ->
     else if not (typeof(frame) is 'number')
       err = new Error "Expected frame as a number: got #{frame}"
     else 
-      await rfn frame, defer b
+      await rfn frame, esc defer b
       [err, out] = purepack.unpack b
       err = new Error "In unpacking #{b.inspect()}: #{err}" if err?
 
@@ -295,7 +299,7 @@ unpack2_from_buffer = (buf, cb) ->
       buf = buf[n...]
     cb err, res
   await unpack2 rfn, defer err, buf
-  cb err, but
+  cb err, buf
 
 ##======================================================================
 
@@ -383,19 +387,25 @@ exports.Decoder = class Decoder extends CoderBase
   #---------------------------
 
   _read_unpack : (cb) ->
-    rfn = (i, cb) => @infile.next i, cb
+    rfn = (i, cb) => 
+      await @infile.next i, defer err, block
+      buf = block.buf unless err?
+      cb err, buf
     await unpack2 rfn, defer err, obj
     cb err, obj
 
   #---------------------------
 
   _read_metadata : (cb) ->
-    await @_read_unpack esc defer @hdr
-    fields = [ "statsize", "filesize", "encrypt", "blocksize" ]
-    f = []
-    for f in fields 
-      missing.push f if not @hdr[f]?
-    err = new Error "malformed header; missing #{JSON.stringify f}" if f.length
+    await @_read_unpack defer err, @hdr
+    unless err?
+      fields = [ "statsize", "filesize", "encrypt", "blocksize" ]
+      missing = []
+      for f in fields 
+        missing.push f if not @hdr[f]?
+      console.log @hdr
+      if missing.length
+        err = new Error "malformed header; missing #{JSON.stringify missing}"
     cb err
 
   #---------------------------
@@ -460,7 +470,7 @@ exports.Encoder = class Encoder extends CoderBase
     [_, estat ] = @filt new Block { buf : pack2(@infile.stat), offset : -1 }
     concat [
       CoderBase.preamble()
-      @metadata estat.length, @infile.stat.size
+      @metadata estat.len(), @infile.stat.size
       estat.buf
     ]
 
@@ -498,8 +508,9 @@ exports.PlainEncoder = class PlainEncoder extends Encoder
 
 exports.Encryptor = class Encryptor extends Encoder
 
-  constructor : ({@keys, @infile, @outfile, @blocksize}) ->
-    super({@keys, @infile, @outfile, @blocksize})
+  constructor : (d) -> 
+    super d
+    # super(d) should set @keys
     @block_engine = new blockcrypt.Engine @keys
 
   filt : (x) -> x.encrypt(@block_engine) 
@@ -510,8 +521,8 @@ exports.Encryptor = class Encryptor extends Encoder
 
 exports.Decryptor = class Decryptor extends Decoder
 
-  constructor : ({@keys, @infile, @outfile}) ->
-    super()
+  constructor : (d) ->
+    super d
     @block_engine = new blockcrypt.Engine @keys
 
   filt   : (x) -> x.decrypt(@block_engine)
