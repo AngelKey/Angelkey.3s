@@ -15,6 +15,13 @@ purepack = require 'purepack'
 
 #==================================================================
 
+fix_stat = (stat) ->
+  for f in ["ctime", "mtime", "atime"]
+    stat[f] = Math.floor(stat[f].getTime()/1000)
+  stat
+
+#==================================================================
+
 msgpack_packed_numlen = (byt) ->
   if      byt < 0x80  then 1
   else if byt is 0xcc then 2
@@ -167,7 +174,7 @@ exports.Block = class Block
     [rc, buf] = eng.decrypt @buf
     out = null
     err = null
-    if rc is sc.OK and buf?
+    if rc is status.OK and buf?
       out = new Block { buf, @offset }
     else
       err = new Error "decryption err: #{error.to_string rc}"
@@ -184,6 +191,10 @@ exports.Infile = class Infile extends Basefile
 
   #------------------------
 
+  more_to_go : () -> not @eof
+
+  #------------------------
+
   size : () -> 
     throw new Error "file is not opened" unless @stat
     @stat.size
@@ -193,6 +204,7 @@ exports.Infile = class Infile extends Basefile
   read : (offset, n, cb) ->
     ret = null
     @buf = new Buffer n unless @buf?.length is n
+    console.log "FS read #{n} #{offset}"
     await fs.read @fd, @buf, 0, n, offset, defer err, br
     if err? 
       err = new Error "#{@filename}/#{offset}-#{offset+n}: #{err}"
@@ -209,12 +221,14 @@ exports.Infile = class Infile extends Basefile
     if (rem = @stat.size - @i) < n 
       n = rem
       eof = true
+    console.log "next #{@stat.size} #{@i} #{eof}"
     await @read @i, n, defer err, block
     if block?
       @i += block.len()
     else
       eof = true
     @eof = eof
+    console.log "set @eof=#{@eof} eof=#{eof}"
     cb err, block, eof
 
   #------------------------
@@ -293,11 +307,13 @@ unpack2 = (rfn, cb) ->
 
 unpack2_from_buffer = (buf, cb) ->
   rfn = (n, cb) ->
-    if n > buf.length then err = new Error "read out of bounds"
+    if n > buf.length 
+      err = new Error "read out of bounds"
+      ret = null
     else 
       ret = buf[0...n]
       buf = buf[n...]
-    cb err, res
+    cb err, ret
   await unpack2 rfn, defer err, buf
   cb err, buf
 
@@ -321,7 +337,7 @@ class CoderBase
 
   #-------------------------
 
-  more_to_go : () -> not @eof
+  more_to_go : () -> @infile.more_to_go()
 
   #--------------
 
@@ -339,6 +355,7 @@ class CoderBase
     await @first_block esc defer()
     bs = @sizer @blocksize
     while @more_to_go()
+      console.log "here we go #{@eof}"
       await @read bs, esc defer block
       if block?
         block.offset = @opos
@@ -357,7 +374,7 @@ class CoderBase
  #--------------
 
   read : (i, cb) ->
-    await @infile.next i, defer err, iblock, @eof
+    await @infile.next i, defer err, iblock, file_eof
     if err?
       log.error err
     else if iblock?
@@ -411,9 +428,12 @@ exports.Decoder = class Decoder extends CoderBase
   #---------------------------
 
   _read_encrypted_stat : (cb) ->
-    await @infile.next @hdr.statsize, defer err, raw
-    [err, block] = @filt raw unless err?
-    [err, @stat] = unpack2_from_buffer block unless err?
+    esc = make_esc cb, "Decode:_read_encrypted_stat"
+    await @infile.next @hdr.statsize, esc defer raw
+    [err, block] = @filt raw
+    unless err?
+      await unpack2_from_buffer block.buf, esc defer @stat 
+      console.log @stat
     cb err
 
   #---------------------------
@@ -467,7 +487,7 @@ exports.Encoder = class Encoder extends CoderBase
   #--------------
   
   header : () ->
-    [_, estat ] = @filt new Block { buf : pack2(@infile.stat), offset : -1 }
+    [_, estat ] = @filt new Block { buf : pack2(fix_stat @infile.stat), offset : -1 }
     concat [
       CoderBase.preamble()
       @metadata estat.len(), @infile.stat.size
