@@ -37,8 +37,8 @@ exports.EscOk = class EscOk
       else cb args...
 
   check_non_null : (cb) ->
-    (a0, args...) =>
-      if not a0? then @bailout()
+    (args...) =>
+      if not args[0]? then @bailout()
       else cb args...
 
 #================================================

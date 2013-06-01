@@ -7,6 +7,7 @@ base58 = require './base58'
 crypto = require 'crypto'
 C = require 'constants'
 {make_esc} = require './err'
+purepack = require 'purepack'
 
 #==================================================================
 
@@ -491,7 +492,7 @@ exports.PlainEncoder = class PlainEncoder extends Encoder
 exports.Encryptor = class Encryptor extends Encoder
 
   constructor : ({@keys, @infile, @outfile, @blocksize}) ->
-    super()
+    super({@keys, @infile, @outfile, @blocksize})
     @block_engine = new blockcrypt.Engine @keys
 
   filt : (x) -> x.encrypt @block_engine
