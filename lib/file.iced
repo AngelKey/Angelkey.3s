@@ -2,7 +2,7 @@
 fs = require 'fs'
 blockcrypt  = require './blockcrypt'
 log = require './log'
-{constants,error,status} = require './constants'
+{constants,errors,status} = require './constants'
 base58 = require './base58'
 crypto = require 'crypto'
 C = require 'constants'
@@ -177,7 +177,7 @@ exports.Block = class Block
     if rc is status.OK and buf?
       out = new Block { buf, @offset }
     else
-      err = new Error "decryption err: #{error.to_string rc}"
+      err = new Error "decryption err: #{errors.to_string rc}"
     [ err , out ]
 
 ##======================================================================

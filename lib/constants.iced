@@ -21,10 +21,12 @@ make_errors = () ->
     E_BAD_SIZE : [ 106, "Wrong size" ]
 
   reverse = {}
-  for k, v in codes
+  fwd = {}
+  for k, v of codes
     reverse[v[0]] = [k].concat v[1...]
+    fwd[k] = v[0]
 
-  exports.status = codes
+  exports.status = fwd
   exports.errors = {
     lookup : reverse
     to_string : (i) -> reverse[i]?[1]
