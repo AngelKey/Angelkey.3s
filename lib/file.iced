@@ -70,13 +70,14 @@ exports.Stdout = class Stdout extends Basefile
 
   _open : (cb) -> cb null
 
+  close : () ->
+
   @open : ({}, cb) ->
     file = new Stdout()
     cb err, file
 
   finish : (ok, cb) ->
-    await @stream.end defer err
-    cb err
+    cb null
 
   write : (block, cb) ->
     if block.offset isnt @pos

@@ -32,7 +32,10 @@ exports.Command = class Command extends Base
   #------------------------------
   
   init : (cb) ->
-    await super defer ok
+    esc = new EscOk cb
+    await super esc.check_ok defer(), E.InitError
+    @infn = @argv.file[0]
+    await Infile.open @infn, esc.check_err defer @infile
     if ok
       await @base_open_input @argv.file[0], defer err, @input
       if err?

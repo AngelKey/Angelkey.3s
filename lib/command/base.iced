@@ -12,6 +12,7 @@ fs = require 'fs'
 {add_option_dict} = require './argparse'
 {Infile, Outfile, Encryptor} = require '../file'
 {EscOk} = require 'iced-error'
+{E} = require '../err'
 
 #=========================================================================
 
@@ -81,6 +82,21 @@ exports.Base = class Base
 
   #-------------------
 
+  init2 : ({infile, outfile, enc}, cb) ->
+    esc = new EscOk cb
+    await @init esc.check_ok defer(), E.InitError
+    if infile
+      @infn = @argv.file[0]
+      await Infile.open @infn, esc.check_err defer @infile
+    if outfile
+      await Outfile.open { target : @output_filename() }, esc.check_err defer @outfile
+    if enc
+      await @pwmgr.derive_keys @is_enc(), esc.check_non_null defer @keys
+      @eng = @make_eng { @keys, @infile, @outfile }
+    cb true
+
+  #-------------------
+
   _init_pwmgr : () ->
     pwopts =
       password    : @password()
@@ -147,17 +163,6 @@ exports.CipherBase = class CipherBase extends Base
 
   #-----------------
 
-  init : (cb) ->
-    esc = new EscOk cb
-    await super esc.check_ok defer()
-    @infn = @argv.file[0]
-    await Infile.open @infn, esc.check_err defer @infile
-    await Outfile.open { target : @output_filename() }, esc.check_err defer @outfile
-    await @pwmgr.derive_keys @is_enc(), esc.check_non_null defer @keys
-    cb true
-  
-  #-----------------
-
   add_subcommand_parser : (scp) ->
     # Ask the child class for the subcommand particulars....
     scd = @subcommand()
@@ -176,10 +181,9 @@ exports.CipherBase = class CipherBase extends Base
   #-----------------
 
   run : (cb) ->
-    await @init defer ok
+    await @init2 { infile : true, outfile : true, enc : true}, defer ok
     if ok 
-      eng = @make_eng { @keys, @infile, @outfile }
-      await eng.run defer err
+      await @eng.run defer err
       if err?
         log.error err
         ok = false
