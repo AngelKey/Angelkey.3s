@@ -1,8 +1,8 @@
 {Base} = require './base'
 log = require '../log'
 {add_option_dict} = require './argparse'
-mycrypto = require '../crypto'
 {Uploader} = require '../uploader'
+{Encryptor} = require '../file'
 
 #=========================================================================
 
@@ -30,31 +30,14 @@ exports.Command = class Command extends Base
     return opts.aliases.concat [ name ]
 
   #------------------------------
-  
-  init : (cb) ->
-    esc = new EscOk cb
-    await super esc.check_ok defer(), E.InitError
-    @infn = @argv.file[0]
-    await Infile.open @infn, esc.check_err defer @infile
-    if ok
-      await @base_open_input @argv.file[0], defer err, @input
-      if err?
-        log.error "In opening input file: #{err}"
-        ok = false 
-    cb ok 
+
+  make_eng : (d) -> new Encryptor d
 
   #------------------------------
   
   run : (cb) -> 
-    await @init defer ok
-
-    if ok and not @argv.no_encrypt
-      @enc = new mycrypto.Encryptor { @pwmgr, stat : @input.stat }
-      await @enc.init defer ok
-      unless ok
-        log.error "Could not setup keys for encryption"
-    else 
-      @eng = null
+    @enc = not @argv.no_encrypt
+    await @init2 { infile : true, @enc }, defer ok
 
     if ok
       ins = @input.stream

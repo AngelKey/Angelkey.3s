@@ -92,7 +92,11 @@ exports.Base = class Base
       await Outfile.open { target : @output_filename() }, esc.check_err defer @outfile
     if enc
       await @pwmgr.derive_keys @is_enc(), esc.check_non_null defer @keys
-      @eng = @make_eng { @keys, @infile, @outfile }
+
+    # An engine of some sort should always be defined, something to pump
+    # data from the input to the output.  Might run through filters, etc...
+    @eng = @make_eng { @keys, @infile, @outfile }
+    
     cb true
 
   #-------------------
