@@ -11,7 +11,7 @@ fs = require 'fs'
 {rmkey} = require '../util'
 {add_option_dict} = require './argparse'
 {Infile, Outfile, Encryptor} = require '../file'
-{EscOk} = require '../err'
+{EscOk} = require 'iced-error'
 
 #=========================================================================
 

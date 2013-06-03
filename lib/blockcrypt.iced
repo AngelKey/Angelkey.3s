@@ -21,7 +21,7 @@
 #==================================================================
 
 crypto = require 'crypto'
-{status} = require './constants'
+{E} = require './err'
 
 #==================================================================
 
@@ -137,10 +137,11 @@ exports.Engine = class Engine
   #--------------------
 
   decrypt : (inblock) ->
-    rc = status.OK
     block = null
+    err = null
 
-    if inblock.length < Engine.metadata_size() then rc = status.E_BAD_SIZE
+    if (i = inblock.length) < (mds = Engine.metadata_size()) 
+      err = new E.BadSizeError "Block length (#{i}) < Metadata Size (#{mds})"
     else
       bodlen = inblock.length - Engine.header_size() - Engine.footer_size()
       splits = [ Engine.header_size(), bodlen ]
@@ -152,10 +153,10 @@ exports.Engine = class Engine
       computed_mac = macer.digest()
 
       if not secure_bufeq computed_mac, given_mac
-        rc = status.E_BAD_MAC
+        err = new E.BadMacError "mac mimsatch in block header"
       else
         dec = Algos.dec @keys.enc, iv
         block = Buffer.concat [ dec.update(body), dec.final() ]
-    [rc, block]
+    [err, block]
 
 #==================================================================

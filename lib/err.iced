@@ -1,69 +1,19 @@
 
 log = require './log'
+ie = require 'iced-error'
 
 #================================================
 
-# Error short-circuit connector
-exports.make_esc = make_esc = (gcb, op) -> (lcb) ->
-  (err, args...) ->
-    if not err? then lcb args...
-    else if not gcb.__esc
-      gcb.__esc = true
-      log.error "In #{op}: #{err}"
-      gcb err
-
-#================================================
-
-# A class-based Error short-circuiter; output OK
-exports.EscOk = class EscOk
-  constructor : (@gcb) ->
-
-  bailout : () ->
-    if @gcb
-      t = @gcb
-      @gcb = null
-      t false
-
-  check_ok : (cb) ->
-    (ok, args...) =>
-      if not ok then @bailout()
-      else cb args...
-
-  check_err : (cb) ->
-    (err, args...) =>
-      if err?
-        log.error err
-        @bailout()
-      else cb args...
-
-  check_non_null : (cb) ->
-    (args...) =>
-      if not args[0]? then @bailout()
-      else cb args...
-
-#================================================
-
-exports.EscErr = class EscErr
-  constructor : (@gcb) ->
-
-  finish : (err) ->
-    if @gcb
-      t = @gcb
-      @gcb = null
-      t err
-
-  check_ok : (what, cb) ->
-    (ok, args...) ->
-      if not ok then @finish new Error "#{what} failed"
-      else cb args...
-
-  check_err : (cb) ->
-    (err, args...) ->
-      if err?
-        log.error err
-        @finish err
-      else cb args...
-
-#================================================
-
-
+exports.E = ie.make_errors
+  GENERIC : "Generic error"
+  INVAL : "Invalid value"
+  NOT_FOUND : "Not found"
+  BAD_QUERY : "Bad query"
+  DUPLICATE : "Duplicated value"
+  BAD_MAC : "Message authentication failure"
+  BAD_SIZE : "Wrong size"
+  BAD_PREAMBLE : "Premable mismatch or bad file magic"
+  BAD_IO : "bad input/output operation"
+  BAD_HEADER : "Bad metadata in file"
+  INTERNAL : "internal assertion failed"
+  MSGPACK : "Message pack format failure"

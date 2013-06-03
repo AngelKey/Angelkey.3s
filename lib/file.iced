@@ -2,12 +2,13 @@
 fs = require 'fs'
 blockcrypt  = require './blockcrypt'
 log = require './log'
-{constants,error,status} = require './constants'
+{constants} = require './constants'
 base58 = require './base58'
 crypto = require 'crypto'
 C = require 'constants'
-{make_esc} = require './err'
+{make_esc} = require 'iced-error'
 purepack = require 'purepack'
+{E} = require './err'
 
 #==================================================================
 
@@ -79,7 +80,7 @@ exports.Stdout = class Stdout extends Basefile
 
   write : (block, cb) ->
     if block.offset isnt @pos
-      err = new Error "Can't seek stdout"
+      err = new E.InvalError "Can't seek stdout"
     else
       await @stream.write block.buf, null, defer err
       @pos += block.buf.length
@@ -155,9 +156,9 @@ exports.Outfile = class Outfile extends Basefile
     o = block.offset
     await fs.write @fd, b, 0, l, o, defer err, nw
     if err?
-      err = new Error "In writing #{@tmpname}@#{o}: #{err}"
+      err = new E.BadIoError "In writing #{@tmpname}@#{o}: #{err}"
     else if nw isnt l 
-      err = new Error "Short write in #{@tmpname}: #{nw} != #{l}"
+      err = new E.BadIoError "Short write in #{@tmpname}: #{nw} != #{l}"
     cb err
 
 ##======================================================================
@@ -171,13 +172,8 @@ exports.Block = class Block
   encrypt : (eng) -> [null, new Block { buf : eng.encrypt(@buf), @offset } ]
 
   decrypt : (eng) ->
-    [rc, buf] = eng.decrypt @buf
-    out = null
-    err = null
-    if rc is status.OK and buf?
-      out = new Block { buf, @offset }
-    else
-      err = new Error "decryption err: #{error.to_string rc}"
+    [err, buf] = eng.decrypt @buf
+    out = if err? then null else new Block { buf, @offset }
     [ err , out ]
 
 ##======================================================================
@@ -196,7 +192,7 @@ exports.Infile = class Infile extends Basefile
   #------------------------
 
   size : () -> 
-    throw new Error "file is not opened" unless @stat
+    throw new E.InternalError "file is not opened" unless @stat
     @stat.size
 
   #------------------------
@@ -207,9 +203,9 @@ exports.Infile = class Infile extends Basefile
     console.log "FS read #{n} #{offset}"
     await fs.read @fd, @buf, 0, n, offset, defer err, br
     if err? 
-      err = new Error "#{@filename}/#{offset}-#{offset+n}: #{err}"
+      err = new E.BadIoError "#{@filename}/#{offset}-#{offset+n}: #{err}"
     else if br isnt n 
-      err = new Error "Short read: #{br} != #{n}"
+      err = new E.BadIoError "Short read: #{br} != #{n}"
     else
       ret = new Block { @buf, offset }
     cb err, ret
@@ -278,7 +274,7 @@ unpack2 = (rfn, cb) ->
   framelen = msgpack_packed_numlen b0[0]
 
   if framelen is 0
-    err = new Error "Bad msgpack len header: #{b0.inspect()}"
+    err = new E.MsgpackError "Bad msgpack len header: #{b0.inspect()}"
   else
 
     if framelen > 1
@@ -293,13 +289,13 @@ unpack2 = (rfn, cb) ->
     [err, frame] = purepack.unpack b
 
     if err?
-      err = new Error "In reading msgpack frame: #{err}"
+      err = new E.MsgpackError "In reading msgpack frame: #{err}"
     else if not (typeof(frame) is 'number')
-      err = new Error "Expected frame as a number: got #{frame}"
+      err = new E.MsgpackError "Expected frame as a number: got #{frame}"
     else 
       await rfn frame, esc defer b
       [err, out] = purepack.unpack b
-      err = new Error "In unpacking #{b.inspect()}: #{err}" if err?
+      err = new E.MsgpackError "In unpacking #{b.inspect()}: #{err}" if err?
 
   cb err, out
 
@@ -308,7 +304,7 @@ unpack2 = (rfn, cb) ->
 unpack2_from_buffer = (buf, cb) ->
   rfn = (n, cb) ->
     if n > buf.length 
-      err = new Error "read out of bounds"
+      err = new E.MsgpackError "read out of bounds"
       ret = null
     else 
       ret = buf[0...n]
@@ -397,7 +393,7 @@ exports.Decoder = class Decoder extends CoderBase
     await @infile.next p.length, defer err, raw
 
     err = if err? then err
-    else if not bufeq raw.buf, p then new Error "Premable mismatch/bad magic"
+    else if not bufeq raw.buf, p then new E.BadPreambleError()
     else null
     cb err
 
@@ -422,7 +418,7 @@ exports.Decoder = class Decoder extends CoderBase
         missing.push f if not @hdr[f]?
       console.log @hdr
       if missing.length
-        err = new Error "malformed header; missing #{JSON.stringify missing}"
+        err = new E.BadHeaderError "malformed header; missing #{JSON.stringify missing}"
     cb err
 
   #---------------------------
@@ -452,7 +448,7 @@ exports.Decoder = class Decoder extends CoderBase
     rem_off = @infile.offset()
     err = null
     if rem_off > @blocksize 
-      err = new Error "header was too big! #{rem_off} > #{@blocksize}"
+      err = new E.BadHeaderError "header was too big! #{rem_off} > #{@blocksize}"
     else
       rem_size = @blocksize - rem_off
       await @infile.next rem_size, defer err, block
@@ -500,7 +496,7 @@ exports.Encoder = class Encoder extends CoderBase
     err = null
     hdr = @header()
     if hdr.length > @blocksize
-      err = new Error "First block is too big!! #{hdr.length} > #{@blocksize}"
+      err = new E.InvalError "First block is too big!! #{hdr.length} > #{@blocksize}"
       log.error err
     else
       rem_osize = @blocksize - hdr.length

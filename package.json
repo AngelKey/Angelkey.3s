@@ -41,7 +41,8 @@
     "mkdirp"             : "*",
     "daemon"             : "*",
     "winston"            : "*",
-    "iced-test"          : "*"
+    "iced-test"          : "*",
+    "iced-error"         : "*"
    },
    "devDependencies" : {
     "optimist"           : "*"
