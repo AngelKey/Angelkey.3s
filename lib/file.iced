@@ -462,6 +462,8 @@ exports.Decoder = class Decoder extends CoderBase
 
   first_block : (cb) ->
     await @_read_header defer err
+    if err? and (err instanceof E.BadMacError)
+      err = new E.BadPwOrMacError() 
     await @_read_first_block defer err unless err?
     cb err
 

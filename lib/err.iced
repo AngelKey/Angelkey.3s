@@ -17,3 +17,4 @@ exports.E = ie.make_errors
   BAD_HEADER : "Bad metadata in file"
   INTERNAL : "internal assertion failed"
   MSGPACK : "Message pack format failure"
+  BAD_PW_OR_MAC : "Bad password or file was corrupted"
