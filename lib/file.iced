@@ -200,7 +200,6 @@ exports.Infile = class Infile extends Basefile
   read : (offset, n, cb) ->
     ret = null
     @buf = new Buffer n unless @buf?.length is n
-    console.log "FS read #{n} #{offset}"
     await fs.read @fd, @buf, 0, n, offset, defer err, br
     if err? 
       err = new E.BadIoError "#{@filename}/#{offset}-#{offset+n}: #{err}"
@@ -217,14 +216,12 @@ exports.Infile = class Infile extends Basefile
     if (rem = @stat.size - @i) < n 
       n = rem
       eof = true
-    console.log "next #{@stat.size} #{@i} #{eof}"
     await @read @i, n, defer err, block
     if block?
       @i += block.len()
     else
       eof = true
     @eof = eof
-    console.log "set @eof=#{@eof} eof=#{eof}"
     cb err, block, eof
 
   #------------------------
@@ -351,7 +348,6 @@ class CoderBase
     await @first_block esc defer()
     bs = @sizer @blocksize
     while @more_to_go()
-      console.log "here we go #{@eof}"
       await @read bs, esc defer block
       if block?
         block.offset = @opos
@@ -416,7 +412,6 @@ exports.Decoder = class Decoder extends CoderBase
       missing = []
       for f in fields 
         missing.push f if not @hdr[f]?
-      console.log @hdr
       if missing.length
         err = new E.BadHeaderError "malformed header; missing #{JSON.stringify missing}"
     cb err
@@ -429,7 +424,6 @@ exports.Decoder = class Decoder extends CoderBase
     [err, block] = @filt raw
     unless err?
       await unpack2_from_buffer block.buf, esc defer @stat 
-      console.log @stat
     cb err
 
   #---------------------------
@@ -444,6 +438,7 @@ exports.Decoder = class Decoder extends CoderBase
   #--------------
 
   _read_first_block : (cb) ->
+    esc = make_esc cb, "Decoder::_read_first_block"
     @blocksize = @hdr.blocksize
     rem_off = @infile.offset()
     err = null
@@ -451,11 +446,12 @@ exports.Decoder = class Decoder extends CoderBase
       err = new E.BadHeaderError "header was too big! #{rem_off} > #{@blocksize}"
     else
       rem_size = @blocksize - rem_off
-      await @infile.next rem_size, defer err, block
+      await @infile.next rem_size, esc defer block
       [err, block] = @filt block unless err?
-      block.offset = 0
-      await @write block, defer err
-      @opos = block.length
+      unless err?
+        block.offset = 0
+        await @write block, esc defer err
+        @opos = block.len()
     cb err
 
   #--------------
