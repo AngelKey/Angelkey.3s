@@ -82,6 +82,12 @@ exports.Base = class Base
 
   #-------------------
 
+  make_outfile : (cb) -> 
+    await Outfile.open { target : @output_filename() }, defer err, file
+    cb err, file
+
+  #-------------------
+
   init2 : ({infile, outfile, enc}, cb) ->
     esc = new EscOk cb
     await @init esc.check_ok defer(), E.InitError
@@ -89,7 +95,7 @@ exports.Base = class Base
       @infn = @argv.file[0]
       await Infile.open @infn, esc.check_err defer @infile
     if outfile
-      await Outfile.open { target : @output_filename() }, esc.check_err defer @outfile
+      await @make_outfile esc.check_err defer @outfile
     if enc
       await @pwmgr.derive_keys @is_enc(), esc.check_non_null defer @keys
 

@@ -49,3 +49,19 @@ exports.AwsWrapper = class AwsWrapper
 
 #=========================================================================
 
+exports.AwsBase = class AwsBase 
+
+  constructor : ({@cmd}) ->
+
+  #--------------
+
+  glacier : -> @cmd.aws.glacier
+  dynamo  : -> @cmd.aws.dynamo
+  sdb     : -> @cmd.aws.sdb
+  iam     : -> @cmd.aws.iam
+  vault   : -> @cmd.config.vault()
+  interactive : -> @cmd.argv.interactive
+  pwmgr   : -> @cmd.pwmgr
+
+#=========================================================================
+

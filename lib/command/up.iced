@@ -2,7 +2,8 @@
 log = require '../log'
 {add_option_dict} = require './argparse'
 {Uploader} = require '../uploader'
-{Encryptor} = require '../file'
+{Encryptor,PlainEncoder} = require '../file'
+{EscOk} = require 'iced-error'
 
 #=========================================================================
 
@@ -31,28 +32,27 @@ exports.Command = class Command extends Base
 
   #------------------------------
 
-  make_eng : (d) -> new Encryptor d
+  make_eng : (d) -> 
+    d.blocksize = Uploader.BLOCKSIZE
+    klass = if @enc then Encryptor else PlainEncoder
+    new klass d
+
+  #------------------------------
+
+  make_outfile : (cb) ->
+    @uploader = new Uploader { base : @, file : @infile }
+    cb null, @uploader
 
   #------------------------------
   
   run : (cb) -> 
+    esc = new EscOk cb, "Uploader::run"
     @enc = not @argv.no_encrypt
-    await @init2 { infile : true, @enc }, defer ok
-
-    if ok
-      ins = @input.stream
-      @input.enc = if @enc? then @enc.version() else 0
-      if @enc?
-        @input.stream = ins.pipe @enc
-
-      uploader = new Uploader {
-        base : @
-        file: @input
-      }
-      await uploader.run defer ok
-      if not ok
-        log.error "upload to glacier failed"
-    cb ok 
+    await @init2 { infile : true, @enc }, esc.check_ok(defer(), E.InitError)
+    await @uploader.init esc.check_ok(defer(), E.AwsError)
+    await @run esc.check_err defer()
+    await @uploader.finish esc.check_ok(defer(), E.IndexError)
+    cb true
 
   #------------------------------
 

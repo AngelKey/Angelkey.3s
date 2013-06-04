@@ -6,20 +6,20 @@ fs = require 'fs'
 ProgressBar = require 'progress'
 log = require './log'
 AWS = require 'aws-sdk'
-{Batcher} = require './batcher'
-{Base} = require './awsio'
+{AwsBase} = require './aws'
 {js2unix} = require './util'
 
 #=========================================================================
 
-exports.Uploader = class Uploader extends Base
+exports.Uploader = class Uploader extends AwsBase
+
+  BLOCKSIZE = 1024 * 1024
 
   #--------------
 
   constructor : ({@base, @file}) ->
-    super { @base }
-    @chunksz = 1024 * 1024
-    @batcher = new Batcher @file.stream, @chunksz 
+    super { cmd : @base }
+    @chunksz = Uploader.BLOCKSIZE
     @buf = new Buffer @chunksz
     @pos = 0
     @eof = false
@@ -27,6 +27,8 @@ exports.Uploader = class Uploader extends Base
     @upid = null
     @archive_id = null
     @bar = null
+    @archiveSize = 0
+    @full_hasher = AWS.util.crypto.createHash 'sha256'
 
   #--------------
 
@@ -45,14 +47,7 @@ exports.Uploader = class Uploader extends Base
       @warn "intiate error: #{err}"
       ok = false
     else ok = true
-    cb ok
-
-  #--------------
-
-  upload : (cb) ->
-    ok = true
-    await @body defer ok if ok
-    await @finish defer ok if ok
+    @start_progress() if ok and @interactive()
     cb ok
 
   #--------------
@@ -65,6 +60,7 @@ exports.Uploader = class Uploader extends Base
       width : 25
       total : @file.stat.size
     @bar = new ProgressBar msg, opts
+    @bar.tick 1 
 
   #--------------
 
@@ -96,63 +92,42 @@ exports.Uploader = class Uploader extends Base
 
   #--------------
 
-  run : (cb) ->
-    ok = true
-    await @init defer ok if ok
-    @start_progress() if ok and @interactive()
-    await @upload defer ok if ok
+  finish : (cb) ->
+    console.log "" if @bar?
+    await @finish_upload defer ok
     await @index defer ok if ok
     cb ok
 
   #--------------
 
-  body : (cb) ->
-    full_hash = AWS.util.crypto.createHash 'sha256'
-    @leaves = []
-    start = 0
-    end = 0
-    go = true
-    ret = true
-    await process.nextTick defer()
-
-    params = 
+  params : (block) -> 
+    start = block.offset
+    end = start + block.len()
+    @archiveSize = end if end > @archiveSize
+    return {
       vaultName : @vault()
       uploadId : @upid
-
-    @bar.tick 1 if @bar?
-
-    while go
-
-      await @batcher.read defer err, eof, chnk
-      if err?
-        log.error "Error in upload: #{err}"
-        go = false
-        ret = false
-      else if eof
-        go = false
-      else
-        end = start + chnk.length
-        full_hash.update chnk
-        @leaves.push AWS.util.crypto.sha256 chnk
-        params.range = "bytes #{start}-#{end-1}/*"
-        params.body = chnk
-        await @glacier().uploadMultipartPart params, defer err, data
-        @bar.tick chnk.length if @bar?
-        if err?
-          @warn "In upload #{start}-#{end}: #{err}"
-          go = false
-        start = end
-    console.log "" if bar?
-
-    @full_hash = full_hash.digest 'hex'
-    @archiveSize = end
-
-    cb ret
+      range : "bytes #{start}-#{end-1}"
+      body : block.buf
+    }
 
   #--------------
 
-  finish : (cb) ->
+  write : (block, cb) ->
+    chnk = block.buf
+    @full_hasher.update chnk
+    @leaves.push AWS.util.crypto.sha256 chnk
+    await @glacier().uploadMultipartPart params, defer err, data
+    @bar.tick block.len() if @bar?
+    if err?
+      @warn "In upload #{param.range}: #{err}"
+    cb err
+
+  #--------------
+
+  finish_upload : (cb) ->
     @tree_hash = @glacier().buildHashTree @leaves
+    @full_hash = full_hasher.digest 'hex'
 
     params = 
       vaultName : @vault()
