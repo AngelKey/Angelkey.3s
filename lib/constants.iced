@@ -8,4 +8,8 @@ exports.constants =
   poll_intervals:
     active : 30
     passive : 300
+  crypto_mode :
+    NONE : 0
+    ENC : 1
+    DEC : 1
 

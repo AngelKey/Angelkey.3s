@@ -13,6 +13,7 @@ fs = require 'fs'
 {Infile, Outfile, Encryptor} = require '../file'
 {EscOk} = require 'iced-error'
 {E} = require '../err'
+{constants} = require '../constants'
 
 #=========================================================================
 
@@ -96,8 +97,9 @@ exports.Base = class Base
       await Infile.open @infn, esc.check_err defer @infile
     if outfile
       await @make_outfile esc.check_err defer @outfile
-    if enc
-      await @pwmgr.derive_keys @is_enc(), esc.check_non_null defer @keys
+    if enc and (@crypto_mode() isnt constants.crypto_mode.NONE)
+      new_key = (@crypto_mode() is constants.crypto_mode.ENC)
+      await @pwmgr.derive_keys new_key, esc.check_non_null defer @keys
 
     # An engine of some sort should always be defined, something to pump
     # data from the input to the output.  Might run through filters, etc...
@@ -149,7 +151,7 @@ exports.CipherBase = class CipherBase extends Base
   #-----------------
 
   need_aws : -> false
-  is_enc : -> false
+  crypto_mode : -> constants.crypto_mode.NONE
 
   #-----------------
 

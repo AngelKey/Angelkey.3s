@@ -1,6 +1,6 @@
-
 {CipherBase} = require './base'
 {Decryptor} = require '../file'
+{constants} = require '../constants'
 
 #=========================================================================
 
@@ -16,7 +16,7 @@ exports.Command = class Command extends CipherBase
   #-----------------
  
   make_eng : (d) -> new Decryptor d
-  is_enc : -> false
+  crypto_mode : -> constants.crypto_mode.DEC
   
   #-----------------
  

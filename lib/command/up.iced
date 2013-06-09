@@ -5,6 +5,7 @@ log = require '../log'
 {Encryptor,PlainEncoder} = require '../file'
 {EscOk} = require 'iced-error'
 {E} = require '../err'
+{constants} = require '../constants'
 
 #=========================================================================
 
@@ -39,7 +40,7 @@ exports.Command = class Command extends Base
 
   #------------------------------
 
-  is_enc : -> true
+  crypto_mode : -> constants.crypto_mode.ENC
 
   #------------------------------
 

@@ -1,6 +1,7 @@
 
 {CipherBase} = require './base'
 {Encryptor} = require '../file'
+{constants} = require '../constants'
 
 #=========================================================================
 
@@ -14,7 +15,7 @@ exports.Command = class Command extends CipherBase
   #-----------------
 
   make_eng : (d) -> new Encryptor d
-  is_enc : -> true
+  crypto_mode : -> constants.crypto_mode.ENC
   
   #-----------------
  
