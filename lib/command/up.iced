@@ -4,10 +4,17 @@ log = require '../log'
 {Uploader} = require '../uploader'
 {Encryptor,PlainEncoder} = require '../file'
 {EscOk} = require 'iced-error'
+{E} = require '../err'
 
 #=========================================================================
 
 exports.Command = class Command extends Base
+
+  #------------------------------
+
+  constructor : (o) ->
+    super o
+    @enc = true
 
   #------------------------------
 
@@ -29,6 +36,10 @@ exports.Command = class Command extends Base
     add_option_dict sub, @OPTS
     sub.addArgument ["file"], { nargs : 1 }
     return opts.aliases.concat [ name ]
+
+  #------------------------------
+
+  is_enc : -> true
 
   #------------------------------
 

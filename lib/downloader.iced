@@ -5,7 +5,7 @@ fs = require 'fs'
 log = require './log'
 util = require 'util'
 {status} = require './constants'
-{Base} = require './awsio'
+{AwsBase} = require './aws'
 mycrypto = require './crypto'
 crypto = require 'crypto'
 myfs = require './fs'
@@ -94,7 +94,7 @@ class Stream extends stream.Readable
 
 #=========================================================================
 
-exports.Downloader = class Downloader extends Base
+exports.Downloader = class Downloader extends AwsBase
 
   #--------------
 
