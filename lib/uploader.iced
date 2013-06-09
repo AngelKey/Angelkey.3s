@@ -13,7 +13,7 @@ AWS = require 'aws-sdk'
 
 exports.Uploader = class Uploader extends AwsBase
 
-  BLOCKSIZE = 1024 * 1024
+  @BLOCKSIZE : 1024 * 1024
 
   #--------------
 
@@ -29,6 +29,12 @@ exports.Uploader = class Uploader extends AwsBase
     @bar = null
     @archiveSize = 0
     @full_hasher = AWS.util.crypto.createHash 'sha256'
+    @leaves = []
+    @enc_mode = 0
+
+  #--------------
+
+  set_enc_mode : (em) -> @enc_mode = em
 
   #--------------
 
@@ -67,15 +73,15 @@ exports.Uploader = class Uploader extends AwsBase
   index : (cb) -> 
     # The primary key is the realpath + the modification time, in case
     # we want to store different versions of the file....
-    mtime = js2unix @file.stat.mtime.getTime()
-    ctime = js2unix @file.stat.ctime.getTime()
+    mtime = @file.stat.mtime
+    ctime = @file.stat.ctime
     atime = js2unix Date.now()
     attributes =  {
       path : @file.realpath,
       hash : @tree_hash,
       atime, ctime, mtime,
       size : @archiveSize,
-      enc : @file.enc.toString()
+      enc : @enc_mode.toString()
     }
     obj_to_list = (d) -> { Name : k, Value : "#{v}", Replace : true } for k,v of d
     arg = 
@@ -107,7 +113,7 @@ exports.Uploader = class Uploader extends AwsBase
     return {
       vaultName : @vault()
       uploadId : @upid
-      range : "bytes #{start}-#{end-1}"
+      range : "bytes #{start}-#{end-1}/*"
       body : block.buf
     }
 
@@ -117,6 +123,7 @@ exports.Uploader = class Uploader extends AwsBase
     chnk = block.buf
     @full_hasher.update chnk
     @leaves.push AWS.util.crypto.sha256 chnk
+    params = @params block
     await @glacier().uploadMultipartPart params, defer err, data
     @bar.tick block.len() if @bar?
     if err?
@@ -127,7 +134,7 @@ exports.Uploader = class Uploader extends AwsBase
 
   finish_upload : (cb) ->
     @tree_hash = @glacier().buildHashTree @leaves
-    @full_hash = full_hasher.digest 'hex'
+    @full_hash = @full_hasher.digest 'hex'
 
     params = 
       vaultName : @vault()

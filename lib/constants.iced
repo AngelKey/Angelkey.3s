@@ -12,4 +12,4 @@ exports.constants =
     NONE : 0
     ENC : 1
     DEC : 1
-
+  enc_version : 1

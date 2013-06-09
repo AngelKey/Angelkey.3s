@@ -53,6 +53,8 @@ exports.Command = class Command extends Base
 
   make_outfile : (cb) ->
     @uploader = new Uploader { base : @, file : @infile }
+    enc_mode = if @enc then constants.enc_version else 0
+    @uploader.set_enc_mode enc_mode
     cb null, @uploader
 
   #------------------------------
@@ -60,9 +62,10 @@ exports.Command = class Command extends Base
   run : (cb) -> 
     esc = new EscOk cb, "Uploader::run"
     @enc = not @argv.no_encrypt
-    await @init2 { infile : true, @enc }, esc.check_ok(defer(), E.InitError)
+    i2o = { infile : true, outfile : true, @enc }
+    await @init2 i2o, esc.check_ok(defer(), E.InitError)
     await @uploader.init esc.check_ok(defer(), E.AwsError)
-    await @run esc.check_err defer()
+    await @eng.run esc.check_err defer()
     await @uploader.finish esc.check_ok(defer(), E.IndexError)
     cb true
 
