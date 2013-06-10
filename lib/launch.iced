@@ -3,7 +3,7 @@ log = require './log'
 {daemon} = require './util'
 fs = require 'fs'
 {client,init_client} = require './client'
-{status} = require './constants'
+{E} = require './err'
 
 #=========================================================================
 
@@ -16,39 +16,41 @@ exports.Launcher = class Launcher
   run : (cb) ->
     cli = null
     ok = true
-    await @check_socket defer rc
-    if rc is status.E_INVAL
-      ok = false
-    else if rc is status.E_NOT_FOUND
-      await @launch defer ok
-    if ok
+    await @check_socket defer err
+
+    # We can recover from a not-found error, we just need to 
+    # launch a new server!
+    if err? and (err instanceof E.NotFoundError)
+      await @launch defer err
+
+    if nor err?
       log.debug "+> connecting to client"
-      await init_client @config.sockfile(), defer ok
-      log.debug "-> connected w/ status=#{ok}"
-      if not ok
-        log.error "Failed to initialize client"
-    if ok
+      await init_client @config.sockfile(), defer err
+      if err?
+        log.error "Failed to initialize client: #{err}"
+      else
+        log.debug "-> connected!"
+    if not err?
       cli = client()
-      await cli.ping defer ok
-      if not ok
-        log.error "Failed to ping daemon process"
+      await cli.ping defer err
+      if err
+        log.error "Failed to ping daemon process: #{err.inspect()}"
       else
         log.info "successfully pinged daemon process"
-    cb ok, cli
+    cli = null if err?
+    cb err, cli
 
   #------------------------------
 
   check_socket : (cb) ->
     f = @config.sockfile()
     await fs.stat f, defer err, stat
-
-    rc = if err? then status.E_NOT_FOUND
-    else if not stat.isSocket()
-      log.error "#{f}: socket wasn't a socket"
-      status.E_INVAL
-    else status.OK
-
-    cb rc
+    if err?.code is 'ENOENT'
+      err = new E.NotFoundError f
+    else if not err? and if not stat.isSocket()
+      msg = "#{f}: socket wasn't a socket"
+      err = new E.InvalError msg
+    cb err
 
   #------------------------------
 
@@ -59,8 +61,9 @@ exports.Launcher = class Launcher
     if msg.err?.length
       for m in msg.err
         log.error "Error launching daemon: #{m}"
+      err = new E.DaemonError "failed to launch daemon"
     else
       log.info "-> Launch succeded: ok=#{msg.ok}"
-    cb msg.ok
+    cb err
 
 #=========================================================================

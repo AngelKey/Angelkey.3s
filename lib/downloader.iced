@@ -4,7 +4,6 @@ path = require 'path'
 fs = require 'fs'
 log = require './log'
 util = require 'util'
-{status} = require './constants'
 {AwsBase} = require './aws'
 mycrypto = require './crypto'
 crypto = require 'crypto'
@@ -13,6 +12,8 @@ stream = require 'stream'
 AWS = require 'aws-sdk'
 {Tee} = require './tee'
 {PasswordManager} = require './pw'
+{Uploader} = require './uploader'
+{E} = require './err'
 
 #=========================================================================
 
@@ -98,9 +99,9 @@ exports.Downloader = class Downloader extends AwsBase
 
   #--------------
 
-  constructor : ({@base, @filename, @opts, @km, @md}) ->
-    super { @base }
-    @chunksz = 1024 * 1024
+  constructor : ({@cmd, @filename, @opts, @km, @md}) ->
+    super { @cmd}
+    @chunksz = Uploader.BLOCKSIZE
     @job = null
 
   #--------------
@@ -289,14 +290,14 @@ exports.Downloader = class Downloader extends AwsBase
       SelectExpression : sel
       ConsistentRead : false
     await @sdb().select arg, defer err, data
-    rc = status.OK
+    err = null
     @md = null
     if err?
       @warn "simpledb.select #{JSON.stringify arg}: #{err}"
-      rc = status.E_QUERY
+      err = new E.BadQueryError err
     else if not data?.Items?.length
       @warn "file not found"
-      rc = status.E_NOT_FOUND
+      err = new E.NotFoundError @filename
     else
       for i in data.Items
         d = { glacier_id : i.Name }
@@ -314,7 +315,7 @@ exports.Downloader = class Downloader extends AwsBase
 
       log.info "Found metadata #{JSON.stringify @md}" if @md
 
-    cb rc, @md
+    cb err, @md
 
   #--------------
 

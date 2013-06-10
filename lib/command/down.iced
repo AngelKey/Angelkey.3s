@@ -52,14 +52,14 @@ exports.Command = class Command extends Base
     if ok 
       downloader = new Downloader {
         filename : @argv.file[0]
-        base : @
+        cmd : @
         opts:
           output_path : @argv.output
           no_decrypt : @argv.no_decrypt
           encrypted_output : @argv.encrypted_output
       }
-      await downloader.find_file defer rc
-      ok = (rc is status.OK) 
+      await downloader.find_file defer err
+      ok = not err?
 
     if ok and not @argv.no_decrypt
       await downloader.get_key_material defer ok

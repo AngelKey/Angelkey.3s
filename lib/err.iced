@@ -21,3 +21,4 @@ exports.E = ie.make_errors
   INIT : "Initialization error"
   AWS : "AWS failure"
   INDEX : "Error commit index to AWS"
+  DAEMON : "Error in connecting to or launching daemon"
