@@ -321,8 +321,8 @@ exports.Downloader = class Downloader extends AwsBase
 
   send_download_to_daemon : (cli, cb) ->
     arg = @export_to_obj()
-    await cli.send_download arg, defer ok
-    cb ok
+    await cli.send_download arg, defer err
+    cb err
 
   #--------------
 

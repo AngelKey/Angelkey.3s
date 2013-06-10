@@ -28,7 +28,11 @@ exports.Client = class Client
     await @_cli.invoke meth, arg, defer err, res
     if err?
       log.error "Error in #{meth}: #{err}"
-    else if not (res?.rc in codes)
+    else if res?.rc is E.OK
+      err = null
+    else if res?.rc in codes
+      err = new E.error[res.rc]
+    else
       log.error "Got bad code from #{meth}: #{res.rc}"
       err = new E.error[res.rc]
       res = null
@@ -48,7 +52,7 @@ exports.Client = class Client
     x = null if err?
     cb err, x
 
-#=========================================================================
+#==============================================ok===========================
 
 _g = {}
 

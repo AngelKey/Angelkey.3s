@@ -69,13 +69,17 @@ exports.Command = class Command extends Base
     if ok
       launcher = new Launcher { @config }
       await launcher.run defer ok, cli
-      if not ok
+      if err?
         log.error 'Failed to launch or connect to daemon process'
+        ok = false
 
     if ok
-      await downloader.send_download_to_daemon cli, defer rc
-      if rc is status.E_DUPLICATE
+      await downloader.send_download_to_daemon cli, defer err
+      if err instanceof E.DuplicateError
         log.info "Duplicate job; request for #{@argv.file[0]} already pending"
+      else
+        log.error "Error sending job to client: #{err}"
+        ok = false
 
     cb ok
 
