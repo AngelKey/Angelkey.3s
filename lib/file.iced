@@ -320,6 +320,27 @@ uint32 = (i) ->
 
 ##======================================================================
 
+class Queue
+  constructor : ->
+    @_q = []
+    @_cb = null
+  push : (args...) ->
+    if @_cb?
+      tmp = @_cb
+      @_cb = null
+      tmp args...
+    else
+      @_q.push args
+  pop : (i, cb) ->
+    if @_q.length?
+      trip = @_q[0]
+      @_q = @q[1...]
+      cb trip...
+    else
+      @_cb = cb
+
+##======================================================================
+
 class CoderBase
 
   #--------------
@@ -328,6 +349,8 @@ class CoderBase
     @blocksize = 1024*1024 unless @blocksize?
     @eof = false
     @opos = 0
+    if (@infile instanceof CoderBase)
+      @q = []
 
   #-------------------------
 
@@ -364,7 +387,14 @@ class CoderBase
       log.error err
     cb err
 
- #--------------
+  #--------------
+
+  # Engines can also act as infiles, so they can be chained
+  next : (i, cb) ->
+    await @q.pop i, defer err, iblock, 
+    cb 
+
+  #--------------
 
   read : (i, cb) ->
     await @infile.next i, defer err, iblock, file_eof
@@ -372,6 +402,8 @@ class CoderBase
       log.error err
     else if iblock?
       [err, oblock] = @filt iblock 
+    if @q?
+      @q.push err, oblock, file_eof
     cb err, oblock
 
 ##======================================================================

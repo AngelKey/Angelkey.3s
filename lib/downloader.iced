@@ -5,7 +5,6 @@ fs = require 'fs'
 log = require './log'
 util = require 'util'
 {AwsBase} = require './aws'
-mycrypto = require './crypto'
 crypto = require 'crypto'
 myfs = require './fs'
 stream = require 'stream'
@@ -14,6 +13,7 @@ AWS = require 'aws-sdk'
 {PasswordManager} = require './pw'
 {Uploader} = require './uploader'
 {E} = require './err'
+{Infile, Outfile, Encryptor} = require '../file'
 
 #=========================================================================
 
@@ -153,6 +153,7 @@ exports.Downloader = class Downloader extends AwsBase
   #--------------
 
   run : (cb) ->
+
 
   #--------------
 
