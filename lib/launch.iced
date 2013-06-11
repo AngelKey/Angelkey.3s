@@ -47,7 +47,7 @@ exports.Launcher = class Launcher
     await fs.stat f, defer err, stat
     if err?.code is 'ENOENT'
       err = new E.NotFoundError f
-    else if not err? and if not stat.isSocket()
+    else if not err? and not stat.isSocket()
       msg = "#{f}: socket wasn't a socket"
       err = new E.InvalError msg
     cb err
