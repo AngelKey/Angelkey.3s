@@ -1,6 +1,7 @@
 rpc = require 'framed-msgpack-rpc'
-{constants,status} = require './constants'
+{constants} = require './constants'
 log = require './log'
+{E} = require './err'
 
 #=========================================================================
 
@@ -20,41 +21,45 @@ exports.Client = class Client
       @_x = null
     else
       @_cli = new rpc.Client @_x, constants.PROT
-    cb (not err)
+    cb err
 
-  _call_check : (meth, arg, cb, codes = [ status.OK ]) ->
+  _call_check : (meth, arg, cb, codes = [ E.OK ]) ->
     ok = false
     await @_cli.invoke meth, arg, defer err, res
     if err?
       log.error "Error in #{meth}: #{err}"
-    else if not (res?.rc in codes)
-      log.error "Got bad code from #{meth}: #{res.rc}"
+    else if res?.rc is E.OK
+      err = null
+    else if res?.rc in codes
+      err = new E.error[res.rc]
     else
-      ok = true
-    cb if ok then res else null
+      log.error "Got bad code from #{meth}: #{res.rc}"
+      err = new E.error[res.rc]
+      res = null
+    cb err, res
 
   ping : (cb) ->
-    await @_call_check "ping", {}, defer res
-    cb res?
+    await @_call_check "ping", {}, defer err
+    cb err
 
   send_download : (obj, cb) ->
-    await @_call_check "download", obj, defer(res), [ status.OK, status.E_DUPLICATE ]
-    cb if res then res.rc else status.E_GENERIC
+    await @_call_check "download", obj, defer(err), [ E.OK, E.DUPLICATE ]
+    cb err
 
   @make : (path, cb) ->
     x = new Client { path }
-    await x.init defer ok
-    x = null unless ok 
-    cb x
+    await x.init defer err
+    x = null if err?
+    cb err, x
 
-#=========================================================================
+#==============================================ok===========================
 
 _g = {}
 
 exports.client = () -> _g.client
 
 exports.init_client = (path, cb) ->
-  await Client.make path, defer _g.client
-  cb _g.client?
+  await Client.make path, defer err, _g.client
+  cb err
 
 #=========================================================================

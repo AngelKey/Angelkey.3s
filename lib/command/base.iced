@@ -10,6 +10,10 @@ myfs = require '../fs'
 fs = require 'fs'
 {rmkey} = require '../util'
 {add_option_dict} = require './argparse'
+{Infile, Outfile, Encryptor} = require '../file'
+{EscOk} = require 'iced-error'
+{E} = require '../err'
+{constants} = require '../constants'
 
 #=========================================================================
 
@@ -79,6 +83,32 @@ exports.Base = class Base
 
   #-------------------
 
+  make_outfile : (cb) -> 
+    await Outfile.open { target : @output_filename() }, defer err, file
+    cb err, file
+
+  #-------------------
+
+  init2 : ({infile, outfile, enc}, cb) ->
+    esc = new EscOk cb
+    await @init esc.check_ok defer(), E.InitError
+    if infile
+      @infn = @argv.file[0]
+      await Infile.open @infn, esc.check_err defer @infile
+    if outfile
+      await @make_outfile esc.check_err defer @outfile
+    if enc and (@crypto_mode() isnt constants.crypto_mode.NONE)
+      new_key = (@crypto_mode() is constants.crypto_mode.ENC)
+      await @pwmgr.derive_keys new_key, esc.check_non_null defer @keys
+
+    # An engine of some sort should always be defined, something to pump
+    # data from the input to the output.  Might run through filters, etc...
+    @eng = @make_eng { @keys, @infile, @outfile }
+    
+    cb true
+
+  #-------------------
+
   _init_pwmgr : () ->
     pwopts =
       password    : @password()
@@ -99,11 +129,6 @@ exports.Base = class Base
   salt     : () -> pick @argv.salt, @config.salt()
   salt_or_email : () -> pick @salt(), @email()
 
-  #----------------
-
-  base_open_input : (fn, cb) ->
-    await myfs.open { filename : fn }, defer err, input
-    cb err, input
 
 #=========================================================================
 
@@ -126,6 +151,7 @@ exports.CipherBase = class CipherBase extends Base
   #-----------------
 
   need_aws : -> false
+  crypto_mode : -> constants.crypto_mode.NONE
 
   #-----------------
 
@@ -137,75 +163,16 @@ exports.CipherBase = class CipherBase extends Base
 
   #-----------------
 
-  open_output : (cb) ->
-    ok = true
-    if (ofn = @output_filename())?
-      @outfn = ofn
-      tmpfn = myfs.tmp_filename @outfn
-      await myfs.open { filename : tmpfn, write : true }, defer err, output
-      if err?
-        log.error "Error opening temp outfile #{tmpfn}: #{err}"
-        ok = false
-    else 
-      output = myfs.stdout()
-    cb ok, output
-
-  #-----------------
-
   # Maybe eventually decryption can do something here...
   patch_file_metadata : (cb) -> cb()
 
   #-----------------
 
-  cleanup_on_success : (cb) ->
-    await fs.rename @output.filename, @outfn, defer err
-    ok = true
-    if err?
-      log.error "Problem in file rename: #{err}"
-      ok = false
-    if ok and @argv.r
-      await fs.unlink @input.filename, defer err
-      if err?
-        log.error "Error in removing original file #{@input.file}: #{err}"
-        ok = false
-    if ok
-      await @patch_file_metadata defer()
-    cb ok
-    
-  #-----------------
-
-  cleanup_on_failure : (cb) ->
-    ok = true
-    await fs.unlink @output.tmpfn, defer err
-    if err?
-      log.warn "cannot remove temporary file #{@output.tmpfn}: #{err}"
-      ok = false
-    cb ok
-
-  #-----------------
-
   cleanup : (ok, cb) ->
-    if ok 
-      await @cleanup_on_success defer ok
-    else
-      @output?.close()
-      @input?.close()
-      await @cleanup_on_failure defer()
+    await @outfile.finish ok, defer() if @outfile?
+    await @infile.finish ok, defer() if @infile?
     cb()
 
-  #-----------------
-
-  init : (cb) ->
-    await super defer ok
-    if ok
-      await @base_open_input @argv.file[0], defer err, @input
-      if err?
-        log.error "In opening input file: #{err}"
-        ok = false
-    if ok
-      await @open_output defer ok, @output
-    cb ok
-  
   #-----------------
 
   add_subcommand_parser : (scp) ->
@@ -226,28 +193,13 @@ exports.CipherBase = class CipherBase extends Base
   #-----------------
 
   run : (cb) ->
-    await @init defer ok
-
-    opened = false
-
-    if ok
-      opened = true
-      @eng = @make_eng { @pwmgr, stat : @input.stat }
-      await @eng.init defer ok
-      if not ok
-        log.error "Could not setup keys for encryption/decryption"
-
-    if ok
-      @input.stream.pipe(@eng).pipe(@output.stream)
-      await @input.stream.once 'end', defer()
-      await @output.stream.once 'finish', defer()
-
-    if ok
-      [ok, err] = @eng.validate()
-      if not ok
-        log.error "Final validation error: #{err}"
-
-    await @cleanup ok, defer() if opened
+    await @init2 { infile : true, outfile : true, enc : true}, defer ok
+    if ok 
+      await @eng.run defer err
+      if err?
+        log.error err
+        ok = false
+    await @cleanup ok, defer()
     cb ok
 
 #=========================================================================

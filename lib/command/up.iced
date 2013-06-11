@@ -1,12 +1,21 @@
 {Base} = require './base'
 log = require '../log'
 {add_option_dict} = require './argparse'
-mycrypto = require '../crypto'
 {Uploader} = require '../uploader'
+{Encryptor,PlainEncoder} = require '../file'
+{EscOk} = require 'iced-error'
+{E} = require '../err'
+{constants} = require '../constants'
 
 #=========================================================================
 
 exports.Command = class Command extends Base
+
+  #------------------------------
+
+  constructor : (o) ->
+    super o
+    @enc = true
 
   #------------------------------
 
@@ -30,43 +39,35 @@ exports.Command = class Command extends Base
     return opts.aliases.concat [ name ]
 
   #------------------------------
-  
-  init : (cb) ->
-    await super defer ok
-    if ok
-      await @base_open_input @argv.file[0], defer err, @input
-      if err?
-        log.error "In opening input file: #{err}"
-        ok = false 
-    cb ok 
+
+  crypto_mode : -> constants.crypto_mode.ENC
+
+  #------------------------------
+
+  make_eng : (d) -> 
+    d.blocksize = Uploader.BLOCKSIZE
+    klass = if @enc then Encryptor else PlainEncoder
+    new klass d
+
+  #------------------------------
+
+  make_outfile : (cb) ->
+    @uploader = new Uploader { base : @, file : @infile }
+    enc_mode = if @enc then constants.enc_version else 0
+    @uploader.set_enc_mode enc_mode
+    cb null, @uploader
 
   #------------------------------
   
   run : (cb) -> 
-    await @init defer ok
-
-    if ok and not @argv.no_encrypt
-      @enc = new mycrypto.Encryptor { @pwmgr, stat : @input.stat }
-      await @enc.init defer ok
-      unless ok
-        log.error "Could not setup keys for encryption"
-    else 
-      @eng = null
-
-    if ok
-      ins = @input.stream
-      @input.enc = if @enc? then @enc.version() else 0
-      if @enc?
-        @input.stream = ins.pipe @enc
-
-      uploader = new Uploader {
-        base : @
-        file: @input
-      }
-      await uploader.run defer ok
-      if not ok
-        log.error "upload to glacier failed"
-    cb ok 
+    esc = new EscOk cb, "Uploader::run"
+    @enc = not @argv.no_encrypt
+    i2o = { infile : true, outfile : true, @enc }
+    await @init2 i2o, esc.check_ok(defer(), E.InitError)
+    await @uploader.init esc.check_ok(defer(), E.AwsError)
+    await @eng.run esc.check_err defer()
+    await @uploader.finish esc.check_ok(defer(), E.IndexError)
+    cb true
 
   #------------------------------
 

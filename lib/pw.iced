@@ -2,6 +2,7 @@
 read = require 'read'
 log = require './log'
 crypto = require 'crypto'
+{Keys} = require './blockcrypt'
 
 #=========================================================================
 
@@ -77,6 +78,12 @@ exports.PasswordManager = class PasswordManager
         log.error "PBKDF2 failed: #{err}"
 
     cb ret
+
+  #-------------------
+
+  derive_keys : (is_new, cb) ->
+    await @derive_key_material Keys.raw_length(), is_new, defer km
+    cb if km? then new Keys km else null
     
   #-------------------
 

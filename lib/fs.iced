@@ -94,7 +94,7 @@ exports.Tmp = class Tmp
 
   finish : (cb) ->
     await @rename defer()
-    await @clenaup defer()
+    await @cleanup defer()
     cb()
 
   cleanup : (cb) ->

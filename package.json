@@ -24,6 +24,9 @@
     "type": "git",
     "url": "git://github.com/maxtaco/mkb.git"
   },
+  "scripts" : {
+    "test" : "make test"
+  },
   "dependencies": {
     "iced-coffee-script" : "*",
     "progress"           : "*",
@@ -37,6 +40,11 @@
     "framed-msgpack-rpc" : "*",
     "mkdirp"             : "*",
     "daemon"             : "*",
-    "winston"            : "*"
+    "winston"            : "*",
+    "iced-test"          : "*",
+    "iced-error"         : "*"
+   },
+   "devDependencies" : {
+    "optimist"           : "*"
   }
 }
