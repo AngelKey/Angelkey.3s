@@ -23,7 +23,7 @@ exports.Launcher = class Launcher
     if err? and (err instanceof E.NotFoundError)
       await @launch defer err
 
-    if nor err?
+    if not err?
       log.debug "+> connecting to client"
       await init_client @config.sockfile(), defer err
       if err?
@@ -34,7 +34,7 @@ exports.Launcher = class Launcher
       cli = client()
       await cli.ping defer err
       if err
-        log.error "Failed to ping daemon process: #{err.inspect()}"
+        log.error "Failed to ping daemon process: #{err}"
       else
         log.info "successfully pinged daemon process"
     cli = null if err?

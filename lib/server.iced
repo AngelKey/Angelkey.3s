@@ -2,10 +2,11 @@
 rpc = require 'framed-msgpack-rpc'
 fs = require 'fs'
 {ExitHandler} = require './exit'
-{status,constants} = require './constants'
+{constants} = require './constants'
 log = require './log'
 {JobStatus,Downloader} = require './downloader'
 aws = require './aws'
+{E} = require './err'
 
 #=========================================================================
 
@@ -28,7 +29,7 @@ exports.Server = class Server extends rpc.SimpleServer
       @launcher.start()
     cb err
 
-  h_ping : (arg, res) -> res.result { rc : status.OK }
+  h_ping : (arg, res) -> res.result { rc : E.OK }
 
   h_download : (arg, res) ->
     await @launcher.incoming_job arg, defer rc
@@ -153,10 +154,10 @@ class JobLauncher
   incoming_job : (arg, cb) ->
     filename = arg.md.path
     if (job = @filenames[filename])?
-      rc = status.E_DUPLICATE
+      rc = E.DUPLICATE
       log.info "|> skipping duplicated job: #{filename}"
     else
-      rc = status.OK
+      rc = E.OK
       arg.base = @base
       dl = Downloader.import_from_obj arg
       @filenames[filename] = dl
