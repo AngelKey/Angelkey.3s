@@ -5,6 +5,7 @@ mycrypto = require '../crypto'
 {Downloader} = require '../downloader'
 {status} = require '../constants'
 {Launcher} = require '../launch'
+{E} = require '../err'
 
 #=========================================================================
 
@@ -68,7 +69,7 @@ exports.Command = class Command extends Base
 
     if ok
       launcher = new Launcher { @config }
-      await launcher.run defer ok, cli
+      await launcher.run defer err, cli
       if err?
         log.error 'Failed to launch or connect to daemon process'
         ok = false
@@ -77,7 +78,7 @@ exports.Command = class Command extends Base
       await downloader.send_download_to_daemon cli, defer err
       if err instanceof E.DuplicateError
         log.info "Duplicate job; request for #{@argv.file[0]} already pending"
-      else
+      else if err?
         log.error "Error sending job to client: #{err}"
         ok = false
 

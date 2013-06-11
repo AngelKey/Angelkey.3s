@@ -16,16 +16,16 @@ rpc.pack.use_byte_arrays()
 
 exports.Server = class Server extends rpc.SimpleServer
 
-  constructor : ({@base}) ->
-    super { path : @base.config.sockfile() }
-    @launcher = new JobLauncher { @base, server : @ }
+  constructor : ({@cmd}) ->
+    super { path : @cmd.config.sockfile() }
+    @launcher = new JobLauncher { @cmd, server : @ }
 
   get_program_name : () -> constants.PROT
 
   listen : (cb) ->
     await super defer err
     unless err?
-      @eh = new ExitHandler { config : @base.config } 
+      @eh = new ExitHandler { config : @cmd.config } 
       @launcher.start()
     cb err
 
@@ -75,7 +75,7 @@ class JobLauncher
 
   #-------------
 
-  constructor : ({@base, @server}) ->
+  constructor : ({@cmd, @server}) ->
     @filenames = {}
     @jobids = {}
     @n_waiting_jobs = 0
@@ -120,7 +120,7 @@ class JobLauncher
       arg = 
         QueueUrl : @sqs.url
         ReceiptHandle : rh
-      await @base.aws.sqs.deleteMessage arg, defer err
+      await @cmd.aws.sqs.deleteMessage arg, defer err
       if err?
         log.error "Error in deleting receipt handle #{rh}: #{err}"
     else
@@ -135,7 +135,7 @@ class JobLauncher
       QueueUrl : @sqs.url
       MaxNumberOfMessages : 5
       WaitTimeSeconds : 1
-    await @base.aws.sqs.receiveMessage arg, defer err, res
+    await @cmd.aws.sqs.receiveMessage arg, defer err, res
     if err
       log.error "Error in polling SQS: #{err}"
     else if res?.Messages?
@@ -146,7 +146,7 @@ class JobLauncher
   #-------------
 
   start : () ->
-    @sqs = new aws.Resource { arn : @base.config.sqs() }
+    @sqs = new aws.Resource { arn : @cmd.config.sqs() }
     @polling_loop()
 
   #-------------
@@ -158,7 +158,7 @@ class JobLauncher
       log.info "|> skipping duplicated job: #{filename}"
     else
       rc = E.OK
-      arg.base = @base
+      arg.cmd = @cmd
       dl = Downloader.import_from_obj arg
       @filenames[filename] = dl
       log.info "|> incoming job: #{dl.toString()}"

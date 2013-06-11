@@ -44,7 +44,7 @@ exports.Command = class Command extends Base
     await @config.make_tmpdir defer ok
     if ok
       sf = @config.sockfile()
-      @server = new Server { base : @ }
+      @server = new Server { cmd : @ }
       await @server.listen defer err
       if err?
         @err "Error listening on #{sf}: #{err}"

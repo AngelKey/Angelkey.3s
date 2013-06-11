@@ -100,7 +100,7 @@ exports.Downloader = class Downloader extends AwsBase
   #--------------
 
   constructor : ({@cmd, @filename, @opts, @km, @md}) ->
-    super { @cmd}
+    super { @cmd }
     @chunksz = Uploader.BLOCKSIZE
     @job = null
 
@@ -130,10 +130,10 @@ exports.Downloader = class Downloader extends AwsBase
 
   #--------------
 
-  @import_from_obj :({base, md, km, opts}) ->
+  @import_from_obj :({cmd, md, km, opts}) ->
     md = new MetaData md
     filename = md.path
-    new Downloader { base, filename, md, km, opts }
+    new Downloader { cmd, filename, md, km, opts }
 
   #--------------
 
@@ -157,7 +157,7 @@ exports.Downloader = class Downloader extends AwsBase
 
     unless @opts.no_decrypt
       eng = new mycrypto.Decryptor { 
-        pwmgr: @base.pwmgr
+        pwmgr: @cmd.pwmgr
         stat: @md
         total_size : @job.size 
         key_material : @km
@@ -170,7 +170,7 @@ exports.Downloader = class Downloader extends AwsBase
       ofb = @output_filename_base()
       tmps = []
       if @opts.no_decrypt or @opts.encypted_output
-        target = [ofb, @base.config.file_extension() ].join '.'
+        target = [ofb, @cmd.config.file_extension() ].join '.'
         tmp_raw = new myfs.Tmp { target }
         tmps.push tmp_raw
 
@@ -263,7 +263,7 @@ exports.Downloader = class Downloader extends AwsBase
         Type : "archive-retrieval"
         ArchiveId : @md.glacier_id
         Description : "mkb down #{@filename}"
-        SNSTopic : @base.config.arns().sns
+        SNSTopic : @cmd.config.arns().sns
     await @glacier().initiateJob arg, defer err, res
     ok = true
     if err?
