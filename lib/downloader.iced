@@ -152,7 +152,11 @@ exports.Downloader = class Downloader extends AwsBase
 
   #--------------
 
-  run : (cb) -> 
+  run : (cb) ->
+
+  #--------------
+
+  run_old : (cb) -> 
     input = new Stream { dl : @ }
 
     unless @opts.no_decrypt
