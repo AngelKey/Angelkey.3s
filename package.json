@@ -3,7 +3,7 @@
   "description":  "A Command-line script to triplesec encrypt and decrypt",
   "keywords":     ["encryption","triplesec"],
   "author":       "Maxwell Krohn",
-  "version":      "0.0.1",
+  "version":      "0.0.2",
   "licenses":     [{
     "type":       "MIT",
     "url":        "https://raw.github.com/jashkenas/coffee-script/master/LICENSE"
