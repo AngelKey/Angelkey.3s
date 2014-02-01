@@ -7,6 +7,10 @@ path = require 'path'
 
 #======================================================
 
+strip = (s) -> s.split(/\s+/).join('')
+
+#======================================================
+
 usage =  ->
   console.error """
 #{path.basename process.argv[1]} [opts] <enc|dec> [file]
@@ -120,7 +124,7 @@ class Cmd
 
   get_in_data : () -> 
     if (e = @get_encoding(@argv.i))?
-      s = @data.toString('utf8')
+      s = strip @data.toString('utf8')
       ret = new Buffer s, e
     else 
       ret = @data
