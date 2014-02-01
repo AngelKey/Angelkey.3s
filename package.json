@@ -1,7 +1,7 @@
 {
-  "name":         "mkb",
-  "description":  "A Command-line script to backup files and directories to Amazon Glacier",
-  "keywords":     ["node", "coffe-script", "backup" ],
+  "name":         "3s",
+  "description":  "A Command-line script to triplesec encrypt and decrypt",
+  "keywords":     ["encryption","triplesec"],
   "author":       "Maxwell Krohn",
   "version":      "0.0.1",
   "licenses":     [{
@@ -9,17 +9,17 @@
     "url":        "https://raw.github.com/jashkenas/coffee-script/master/LICENSE"
   }],
   "engines":      {
-    "node":       ">=0.4.0"
+    "node":       ">=0.10.0"
   },
   "directories" : {
-    "lib" : "./src"
+    "lib" : "/lib"
   },
-  "main" : "./src/index.iced",
-  "bin":          {
-    "mkb" : "./bin/mkb.iced"
+  "main" : "./lib/command.js",
+  "bin":  {
+    "3s" : "./bin/3s.js"
   },
-  "homepage":     "http://github.com/maxtaco/mkb",
-  "bugs":         "https://github.com/maxtaco/mkb/issues",
+  "homepage":     "http://github.com/github/3s",
+  "bugs":         "https://github.com/github/3s/issues",
   "repository":   {
     "type": "git",
     "url": "git://github.com/maxtaco/mkb.git"
@@ -28,23 +28,12 @@
     "test" : "make test"
   },
   "dependencies": {
-    "iced-coffee-script" : "*",
-    "progress"           : "*",
-    "aws-sdk"            : "*",
-    "argparse"           : "*",
-    "read"               : "*",
-    "bignum"             : "*",
-    "colors"             : "*",
-    "read"               : "*",
-    "purepack"           : "*",
-    "framed-msgpack-rpc" : "*",
-    "mkdirp"             : "*",
-    "daemon"             : "*",
-    "winston"            : "*",
-    "iced-test"          : "*",
-    "iced-error"         : "*"
+    "optimist"           : "~0.6.0",
+    "triplesec"          : "~3.0.3",
+    "read"               : "~1.0.5",
+    "iced-error"         : "~0.0.8"
    },
    "devDependencies" : {
-    "optimist"           : "*"
+    "iced-coffee-script" : "~1.7.0"
   }
 }
