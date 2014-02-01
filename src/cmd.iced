@@ -113,7 +113,7 @@ class Cmd
     unless (@key = @argv.k)?
       loop
         match = false
-        await read { prompt : "password ----->", silent : true, replace : '*' }, defer err, @key
+        await read { prompt : "password ------->", silent : true, replace : '*' }, defer err, @key
         if not(err?) and @_do_enc
           await read { prompt : "password (again)>", silent : true, replace : '*' }, defer err, p2
           match = (@key is p2) unless err?
