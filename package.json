@@ -3,10 +3,9 @@
   "description":  "A Command-line script to triplesec encrypt and decrypt",
   "keywords":     ["encryption","triplesec"],
   "author":       "Maxwell Krohn",
-  "version":      "0.0.2",
+  "version":      "0.0.3",
   "licenses":     [{
     "type":       "MIT",
-    "url":        "https://raw.github.com/jashkenas/coffee-script/master/LICENSE"
   }],
   "engines":      {
     "node":       ">=0.10.0"
@@ -18,11 +17,11 @@
   "bin":  {
     "3s" : "./bin/3s.js"
   },
-  "homepage":     "http://github.com/github/3s",
-  "bugs":         "https://github.com/github/3s/issues",
+  "homepage":     "http://github.com/keybase/3s",
+  "bugs":         "https://github.com/keybase/3s/issues",
   "repository":   {
     "type": "git",
-    "url": "git://github.com/maxtaco/mkb.git"
+    "url": "git://github.com/keybase/3s.git"
   },
   "scripts" : {
     "test" : "make test"
