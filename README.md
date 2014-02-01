@@ -1,4 +1,4 @@
-mkb
+3s
 =====
 
-Command-line utilities to backup files to AWS Glacier
+Command-line interface to triplesec.  Pretty dirt simple right now.
