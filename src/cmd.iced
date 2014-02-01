@@ -22,7 +22,9 @@ Options:
   -e/--output-encoding <enc>  the output encoding to write with
 
 If no file given, will read from stdin.  If no output file, will write to standard
-output.
+output. You can't clobber up standard input, so you can either prompt
+for a key or pipe data in, but not both.  I realize there are ways to
+solve this, but I am lazy!
 """
 
 #======================================================
@@ -58,7 +60,8 @@ class Cmd
             boolean('h').
             alias('e', 'output-encoding').argv
 
-    if @argv._.length < 1
+    if @argv.h then #noop
+    else if @argv._.length < 1
       err = new Error 'Need an enc/dec comand'
     else if @argv._.length > 2
       err = new Error 'Can only handle 2 arguments at most'
@@ -74,9 +77,8 @@ class Cmd
         err = new Error 'Can only support enc or dec'
     err = @check_encoding @argv.i unless err?
     err = @check_encoding @argv.e unless err?
-    unless err?
-      if not @filename and not @argv.k
-        err = new Error "Can't read a key and the data from standard input!"
+    if not(err?) and not @argv.h and not @filename and not @argv.k
+      err = new Error "Can't read a key and the data from standard input!"
     cb err
 
   #------------------------
