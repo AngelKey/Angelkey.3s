@@ -69,7 +69,7 @@ class Cmd
       else
         err = new Error 'Can only support enc or dec'
     err = @check_encoding @argv.i unless err?
-    err = @check_encoding @argv.o unless err?
+    err = @check_encoding @argv.e unless err?
     unless err?
       if not @filename and not @argv.k
         err = new Error "Can't read a key and the data from standard input!"
@@ -78,7 +78,7 @@ class Cmd
   #------------------------
 
   get_input : (cb) ->
-    if @fiename
+    if @filename
       await fs.readFile @filename, defer err, @data
     else
       await @consume_stdin defer err, @data
@@ -155,8 +155,8 @@ class Cmd
     if @argv.h
       usage()
     else
-      await @get_input esc defer()
       await @get_key esc defer()
+      await @get_input esc defer()
       await @do_cmd esc defer()
       await @write_output esc defer()
     cb null
